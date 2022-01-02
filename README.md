@@ -11,8 +11,19 @@ Temporary, crappy HowTo:
 3. Flash it on your ESP8266 (I used a D1 Mini)
 4. Wire up the modbus converter (details will follow)
 5. Connect the modbus devices
-6. Change Fancoil Settings over http://IP/set?on=true
+6. Change Fancoil Settings over http://IP/set?on=1
 
+HTTP examples:
+/set?addr=1&ambient=22.9&setpoint=23.0&on=0&speed=MIN&swing=False&fanonly=False&mode=COOLING
+
+addr: (0...31) modbus address of the fancoil
+ambient: (XX.X) temperature in deg C of the current room temperature
+setpoint: (XX.X) temperature in deg C of the desired setpoint
+on: (true/false) ...on/off
+speed (MIN/MAX/AUTO/NIGHT): speed of the ventilator
+swing: (true/false): turn on/off swinging
+fanonly: (true/false): only turn on fan, do not heat ore cool
+mode: (COOLING/HEATING): mode
 
 HARDWARE
 
@@ -23,4 +34,4 @@ Check out the PCB design in the pcb folder.
 
 Wire Connections:
 
-
+(need to look that up)
