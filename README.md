@@ -5,7 +5,7 @@
 ### Temporary, crappy HowTo:
 
 1. Open the project in Arduino IDE
-2. Configure WiFi
+2. Configure WiFi (copy configuration.example.h to configuration.h)
 3. Flash it on your ESP8266 (I used a D1 Mini)
 4. Wire up the modbus converter (details will follow)
 5. Connect the modbus devices
@@ -38,8 +38,9 @@ How to compile the software:
 3. Install the ESP8266 board (google instructions; or follow https://randomnerdtutorials.com/how-to-install-esp8266-board-arduino-ide/)
 4. Install the Elegant OTA update library https://github.com/ayushsharma82/ElegantOTA#how-to-install
 5. Hope that I didn't forget any other needed libs
-6. Change the WiFi name and password
-7. compile and run it =)
+6. Copy configuration.example.h to configuration.h
+7. Change the WiFi name and password in configuration.h
+8. compile and run it =)
 
 ## HARDWARE
 

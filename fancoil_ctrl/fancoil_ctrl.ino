@@ -22,10 +22,6 @@ ESP8266WebServer server(80);
 
 #include "configuration.h"
 
-//const char* kSsid = "XXX";
-//const char* kPassword = "XXX";
-//const char* wifiHost = "FancoilCtrl";
-
 // instantiate ModbusMaster object
 SoftwareSerial modbusSerial(D4, D1, true);
 
