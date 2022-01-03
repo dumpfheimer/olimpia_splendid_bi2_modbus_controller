@@ -29,6 +29,17 @@ HTTP params:
 - swing: (true/false): turn on/off swinging
 - fanonly: (true/false): only turn on fan, do not heat ore cool
 - mode: (COOLING/HEATING): mode
+## SOFTWARE
+
+How to compile the software:
+
+1. Download and setup Arduino IDE https://www.arduino.cc/en/software/
+2. Open this project in the IDE
+3. Install the ESP8266 board (google instructions; or follow https://randomnerdtutorials.com/how-to-install-esp8266-board-arduino-ide/)
+4. Install the Elegant OTA update library https://github.com/ayushsharma82/ElegantOTA#how-to-install
+5. Hope that I didn't forget any other needed libs
+6. Change the WiFi name and password
+7. compile and run it =)
 
 ## HARDWARE
 
