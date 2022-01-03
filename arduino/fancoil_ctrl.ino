@@ -17,13 +17,14 @@ void debugPrintln(unsigned long l, int i);
 bool noSwing = false;
 ESP8266WebServer server(80);
 
-#include "modbus.h"
+#include "modbus_ascii.h"
 #include "fancoil.h"
 
+#include "configuration.h"
 
-const char* kSsid = "XXX";
-const char* kPassword = "XXX";
-const char* wifiHost = "FancoilCtrl";
+//const char* kSsid = "XXX";
+//const char* kPassword = "XXX";
+//const char* wifiHost = "FancoilCtrl";
 
 // instantiate ModbusMaster object
 SoftwareSerial modbusSerial(D4, D1, true);
