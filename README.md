@@ -64,3 +64,18 @@ NOTE: EVERY fancoil connected to the modbus using the source address will change
 
 Address must be registered. You can register an address by opening http://CONTROLLER_IP/ in a browser, enter the address (int) at the "register address form" and hit submit
 You should unregister unused fancoils, because the controller will try to reach the address periodically unnessecarily otherwise.
+
+## Wiring
+**MAX -> ESP**
+
+GND -> GND
+
+5V -> 5V
+
+DI -> D1
+
+DE -> D2
+
+RE -> D3
+
+RO -> D4
