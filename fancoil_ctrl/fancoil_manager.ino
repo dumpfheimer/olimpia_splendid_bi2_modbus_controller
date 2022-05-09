@@ -115,6 +115,10 @@ void loadFancoils() {
   debugPrint("Loaded ");
   debugPrint(count);
   debugPrintln(" Fancoils");
+  
+  #ifdef MQTT_HOST
+  sendHomeAssistantConfiguration();
+  #endif
 }
 bool registerFancoil(uint8_t registerAddress) {
   uint8_t tmpAddress;

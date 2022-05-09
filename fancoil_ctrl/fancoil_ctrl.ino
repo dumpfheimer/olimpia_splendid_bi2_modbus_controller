@@ -63,7 +63,10 @@ void setup()
   MODBUS_SERIAL.setTimeout(5000);
 
   setupFancoilManager();
-
+  
+  #ifdef MQTT_HOST
+  setupMqtt();
+  #endif
 }
 
 // reading 601-602
@@ -76,4 +79,8 @@ void loop() {
   loopOTA();
 
   loopFancoils(&MODBUS_SERIAL);
+  
+  #ifdef MQTT_HOST
+  loopMqtt();
+  #endif
 }
