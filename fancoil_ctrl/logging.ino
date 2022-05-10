@@ -3,7 +3,8 @@
 
 void setupLogging() {
   #ifdef USE_LOGGING
-    DEBUG_SERIAL.begin(9600, SERIAL_8E1);
+    DEBUG_SERIAL.begin(115200);
+    DEBUG_SERIAL.println("Logging enabled");
   #endif
 }
 
