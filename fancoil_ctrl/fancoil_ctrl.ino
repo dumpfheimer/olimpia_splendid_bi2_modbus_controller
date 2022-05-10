@@ -18,9 +18,15 @@ bool noSwing = false;
 ESP8266WebServer server(80);
 
 #include "modbus_ascii.h"
-#include "fancoil.h"
 
 #include "configuration.h"
+
+
+#ifdef MQTT_HOST
+void notifyStateChanged();
+#endif
+#include "fancoil.h"
+
 
 // instantiate ModbusMaster object
 SoftwareSerial modbusSerial(D4, D1, true);

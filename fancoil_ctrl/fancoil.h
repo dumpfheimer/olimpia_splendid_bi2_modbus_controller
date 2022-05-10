@@ -414,6 +414,8 @@ class Fancoil {
 
         debugPrintln("read success");
         lastRead = millis();
+
+        if (lastReadChangedValues) notifyStateChanged();
         
         isBusy = false;
         return true;

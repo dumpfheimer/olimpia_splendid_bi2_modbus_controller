@@ -11,9 +11,11 @@ String clientId;
 char* topicBuffer;
 char* messageBuffer;
 
+boolean stateChanged = false;
+unsigned long lastSend = 0;
 
-void setupMqttListenTopics() {
-  
+void notifyStateChanged() {
+  stateChanged = true;
 }
 
 void publishHelper(String* publishTopic, String* publishMessage, bool retain) {
@@ -35,6 +37,66 @@ void subscribeHelper(String subscribeTopic) {
   subscribeHelper(&subscribeTopic);
 }
 
+void sendFancoilState(Fancoil* fancoil) {
+  String addr = String(fancoil->getAddress());
+  String state;
+
+  switch (fancoil->getSyncState()) {
+    case SyncState::HAPPY:
+    case SyncState::WRITING:
+      if (fancoil->ambientTemperatureIsValid()) {
+          state = "CONNECTED";
+      } else {
+        state = "INVALID_AMBIENT_TEMPERATURE";
+      }
+      break;
+    default:
+      state = "DISCONNECTED";
+      break;
+  }
+
+  publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/state/state", state, false);
+    
+  switch (fancoil->getSpeed()) {
+    case FanSpeed::MAX:
+      state = "max";
+      break;
+    case FanSpeed::NIGHT:
+      state = "night";
+      break;
+    case FanSpeed::MIN:
+      state = "min";
+      break;
+    case FanSpeed::AUTOMATIC:
+      state = "auto";
+      break;
+  }
+  publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state", state, false);
+  
+  if (fancoil->getMode() == Mode::COOLING) {
+      state = "cooling";
+  } else {
+      state = "heating";
+  }
+  publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/state", state, false);
+
+  state = fancoil->isOn() ? "ON" : "OFF";
+  publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/state", state, false);
+
+  state = fancoil->isSwingOn() ? "ON" : "OFF";
+  publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/state", state, false);
+}
+
+void sendFancoilStates() {
+  stateChanged = false;
+  LinkedFancoilListElement *fancoilLinkedList = getFirstFancoilListElement();
+  while (fancoilLinkedList != NULL && fancoilLinkedList->fancoil != NULL) {
+    sendFancoilState(fancoilLinkedList->fancoil);
+    fancoilLinkedList = fancoilLinkedList->next;
+  }
+  lastSend = millis();
+}
+
 void sendHomeAssistantConfiguration() {
   if (!client.connected()) return;
   
@@ -45,7 +107,7 @@ void sendHomeAssistantConfiguration() {
   "{\"~\": \"fancoil_ctrl/" + clientId + "/online\", \"name\": \"Fancoil controller " + clientId + " online\", \"unique_id\": \"fancoil_" + clientId + "_online\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "\", \"name\": \"Fancoil controller " + clientId + "\"}}", true);
   // IP
   publishHelper("homeassistant/sensor/" + clientId + "/ip/config",
-  "{\"~\": \"fancoil_ctrl/" + clientId + "/ip\", \"name\": \"Fancoil controller " + clientId + " IP Address\", \"unique_id\": \"fancoil_" + clientId + "_ip\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "\", \"name\": \"Fancoil controller " + clientId + "\"}}", true);
+  "{\"~\": \"fancoil_ctrl/" + clientId + "/ip\", \"name\": \"Fancoil controller " + clientId + " IP Address\", \"unique_id\": \"fancoil_" + clientId + "_ip\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "\", \"name\": \"Fancoil controller " + clientId + "\", \"cu\": \"http://" + WiFi.localIP().toString() + "/\"}}", true);
   
 
   for (uint8_t addr_i = 0; addr_i <= 32; addr_i++) {
@@ -76,47 +138,53 @@ void sendHomeAssistantConfiguration() {
     // on / off
     publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config",
     "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/on_off\", \"name\": \"Fancoil " + clientId + "-" + addr + " on_off\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_on_off\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-    subscribeHelper("fancoil_ctrl/" + clientId + "-" + addr + "/on_off/set");
+    subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/set");
     
     publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config",
     "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/swing\", \"name\": \"Fancoil " + clientId + "-" + addr + " swing\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_swing\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-    subscribeHelper("fancoil_ctrl/" + clientId + "-" + addr + "/swing/set");
+    subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/set");
   
     //mode: heating cooling
     publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config",
     "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heating\", \"cooling\"]}", true);
-    subscribeHelper("fancoil_ctrl/" + clientId + "-" + addr + "/mode/set");
+    subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
     
     //fan speed: auto, night, min, max
     publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config",
     "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed\", \"name\": \"Fancoil " + clientId + "-" + addr + " fan speed\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_fan_speed\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"auto\", \"min\", \"max\", \"night\"]}", true);
-    subscribeHelper("fancoil_ctrl/" + clientId + "-" + addr + "/fan_speed/set");
+    subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set");
     
     
     // state: info text
     publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config",
     "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/state\", \"name\": \"Fan coil " + clientId + "-" + addr + " state\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_state\", \"stat_t\": \"~/state\", \"retain\": \"true\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-    
+
+    sendFancoilState(fancoilLinkedList->fancoil);
     fancoilLinkedList = fancoilLinkedList->next;
   }
 }
 
 void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
   String t = String(topic);
-  String idAndRest = t.substring(t.indexOf("-"));
-  String id = idAndRest.substring(0, t.indexOf("/"));
+  String idAndRest = t.substring(t.indexOf("/") + 1);
+  String id = idAndRest.substring(0, idAndRest.indexOf("/"));
+
+  String addressAndRest = idAndRest.substring(idAndRest.indexOf("/") + 1);
+  String address = addressAndRest.substring(0, addressAndRest.indexOf("/"));
   
-  String topicNameAndRest = idAndRest.substring(t.indexOf("/"));
-  String topicName = topicNameAndRest.substring(0, t.indexOf("/"));
-  String cmd = topicNameAndRest.substring(t.indexOf("/"));
+  String topicNameAndRest = addressAndRest.substring(addressAndRest.indexOf("/") + 1);
+  String topicName = topicNameAndRest.substring(0, topicNameAndRest.indexOf("/"));
+  String cmd = topicNameAndRest.substring(topicNameAndRest.indexOf("/") + 1);
 
   if (cmd == "set") {
+    debugPrintln("Received set command for addr " + address + " property " + topicName);
     Fancoil* f = getFancoilByAddress((int) id.toDouble());
     if (f != NULL) {
       char* msg_ba = (char*) malloc(sizeof(char) * (length + 1));
       memcpy(msg_ba, (char*) payload, length);
       msg_ba[length] = 0;
       String msg = String(msg_ba);
+      debugPrintln("Received set command for addr " + address + " property " + topicName + ": " + msg);
       if (topicName == "on_off") {
         f->setOn(isTrue(msg));
       } else if (topicName == "swing") {
@@ -155,7 +223,6 @@ void mqttReconnect() {
             delay(5000);
         } else {
           debugPrint("success");
-          setupMqttListenTopics();
           sendHomeAssistantConfiguration();
           lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
           client.publish(topicBuffer, "ON");
@@ -171,6 +238,7 @@ void mqttReconnect() {
 
 void setupMqtt() {
   client.setServer(MQTT_HOST, 1883);
+  client.setCallback(mqttHandleMessage);
   
   topicBuffer = (char*) malloc(sizeof(char) * TOPIC_BUFFER_SIZE);
   messageBuffer = (char*) malloc(sizeof(char) * MESSAGE_BUFFER_SIZE);
@@ -184,6 +252,7 @@ void setupMqtt() {
 void loopMqtt() {
   mqttReconnect();
   client.loop();
+  if (stateChanged || (millis() - lastSend) > 30000) sendFancoilStates();
 }
 
 #endif
