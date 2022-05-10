@@ -337,6 +337,10 @@ void handleSet() {
   } else {
     server.send(500, "application/json", "{\"error\": \"write failed\"}");
   }
+  
+  #ifdef MQTT_HOST
+  notifyStateChanged();
+  #endif
 }
 
 void handleChangeAddress() {

@@ -415,7 +415,9 @@ class Fancoil {
         debugPrintln("read success");
         lastRead = millis();
 
+        #ifdef MQTT_HOST
         if (lastReadChangedValues) notifyStateChanged();
+        #endif
         
         isBusy = false;
         return true;
