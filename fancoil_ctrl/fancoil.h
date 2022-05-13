@@ -44,7 +44,9 @@ class Fancoil {
 
     // the last receive time
     unsigned long lastAmbientSet = 0;
+    #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     unsigned long ambientSetTimeout = 600000; // 10 min
+    #endif
 
     // the last successful read
     unsigned long lastRead = 0;
@@ -88,7 +90,9 @@ class Fancoil {
 
       sendPeriod = 60000;
       readPeriod = 30000;
+      #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
       ambientSetTimeout = 600000; // 10 min
+      #endif
       communicationTimer = 0;
 
       ev1 = false;
@@ -181,11 +185,15 @@ class Fancoil {
     }
 
     bool ambientTemperatureIsValid() {
+      #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
       if ((millis() - lastAmbientSet) < ambientSetTimeout) {
         return true;
       } else {
         return false;
       }
+      #else
+      return true;
+      #endif
     }
 
     bool readTimeout() {
