@@ -157,6 +157,7 @@ class Fancoil {
     }
 
     void setAmbient(double newAmbient) {
+      #if !USE_DEVICE_TEMPERATURE
       if (newAmbient < 1) newAmbient = 1;
       if (newAmbient > 40) newAmbient = 40;
 
@@ -166,6 +167,7 @@ class Fancoil {
       if (ambientTemperature != newAmbient) syncState = SyncState::WRITING;
       ambientTemperature = newAmbient;
       lastAmbientSet = millis();
+      #endif
     }
     
     double getAmbient() {
@@ -305,11 +307,15 @@ class Fancoil {
         debugPrintln("write 2 was successfull");
         successfullWrites++;
       }
-      
+
+      #if USE_DEVICE_TEMPERATURE
+      successfullWrites++;
+      #else
       if (modbusWriteRegister(stream, address, 103, (uint16_t) (getAmbient() * 10)).success()) {
         debugPrintln("write 3 was successfull");
         successfullWrites++;
       }
+      #endif
 
       if (!writeSwingIfNeeded(stream)) {
         successfullWrites--;
@@ -419,6 +425,17 @@ class Fancoil {
           return false;
         }
 
+        #if USE_DEVICE_TEMPERATURE
+        IncomingMessage tempRes = modbusReadRegister(stream, address, 103);
+        if (tempRes.success()) {
+          uint16_t temp = (tempRes.data[1] << 8) | tempRes.data[2];
+          ambientTemperature = (double) temp / 10.0;
+        } else {
+          debugPrintln("read ambient temperature error");
+          isBusy = false;
+          return false;
+        }
+        #endif
 
         debugPrintln("read success");
         lastRead = millis();

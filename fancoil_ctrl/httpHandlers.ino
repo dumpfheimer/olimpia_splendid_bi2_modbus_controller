@@ -158,7 +158,7 @@ void handleRead() {
   } else if (i.isError) {
     server.send(500, "text/plain", "fan coil returned error");
   } else {
-    server.send(200, "text/plain", String(i.data[1], HEX) + " " + String(i.data[2], HEX) + " bin: " +  String(i.data[1], BIN) + " " + String(i.data[2], BIN));
+    server.send(200, "text/plain", String(i.data[1], HEX) + " " + String(i.data[2], HEX) + " bin: " +  String(i.data[1], BIN) + " " + String(i.data[2], BIN) + " dec: " + String((i.data[1] << 8) | i.data[2], DEC));
   }
 }
 
