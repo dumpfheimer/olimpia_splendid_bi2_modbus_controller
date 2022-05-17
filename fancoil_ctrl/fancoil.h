@@ -36,7 +36,7 @@ class Fancoil {
     AbsenceCondition absenceConditionForced = AbsenceCondition::NOT_FORCED;
 
     double setpoint = 22;
-    double ambientTemperature = 22;
+    double ambientTemperature = 21;
 
     // the last successful write
     unsigned long lastSend = 0;
@@ -82,7 +82,7 @@ class Fancoil {
       address = addr;
       isInUse = true;
       setpoint = 22;
-      ambientTemperature = 22;
+      ambientTemperature = 21;
       speed = FanSpeed::AUTOMATIC;
       mode = Mode::COOLING;
       absenceConditionForced = AbsenceCondition::NOT_FORCED;
@@ -431,6 +431,7 @@ class Fancoil {
           uint16_t temp = (tempRes.data[1] << 8) | tempRes.data[2];
           ambientTemperature = (double) temp / 10.0;
         } else {
+          ambientTemperature = 0.0;
           debugPrintln("read ambient temperature error");
           isBusy = false;
           return false;

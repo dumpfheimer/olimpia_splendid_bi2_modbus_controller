@@ -175,7 +175,11 @@ void sendHomeAssistantConfiguration() {
     
     // ambient temp
     publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config",
-    "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_temperature\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
+    "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_temperature\", " +
+    #if !USE_DEVICE_TEMPERATURE
+    "\"cmd_t\": \"~/set\", " +
+    #endif
+    "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
     subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
     
     // is consuming water
