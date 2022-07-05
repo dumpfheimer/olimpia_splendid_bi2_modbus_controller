@@ -80,8 +80,10 @@ void handleGet() {
     
     if (fancoil->getMode() == Mode::COOLING) {
         ret += "\"mode\": \"COOLING\", ";
-    } else {
+    } else if (fancoil->getMode() == Mode::HEATING) {
         ret += "\"mode\": \"HEATING\", ";
+    } else {
+        ret += "\"mode\": \"NONE\", ";
     }
 
     if (fancoil->ambientTemperatureIsValid()) {
@@ -118,6 +120,24 @@ void handleGet() {
         ret += "\"ev2\": true, ";
     } else {
         ret += "\"ev2\": false, ";
+    }
+    
+    if (fancoil->boilerOn()) {
+        ret += "\"boiler\": true, ";
+    } else {
+        ret += "\"boiler\": false, ";
+    }
+    
+    if (fancoil->chillerOn()) {
+        ret += "\"chiller\": true, ";
+    } else {
+        ret += "\"chiller\": false, ";
+    }
+    
+    if (fancoil->hasWaterFault()) {
+        ret += "\"waterFault\": true, ";
+    } else {
+        ret += "\"waterFault\": false, ";
     }
     
     switch (fancoil->getSyncState()) {
@@ -159,6 +179,23 @@ void handleRead() {
     server.send(500, "text/plain", "fan coil returned error");
   } else {
     server.send(200, "text/plain", String(i.data[1], HEX) + " " + String(i.data[2], HEX) + " bin: " +  String(i.data[1], BIN) + " " + String(i.data[2], BIN) + " dec: " + String((i.data[1] << 8) | i.data[2], DEC));
+  }
+}
+
+void handleResetWaterTemperatureFault() {
+  uint8_t addr = getAddress();
+  
+  if (!(addr > 0 && addr <= 32)) {
+    server.send(500, "text/plain", "address must be between 1 and 32");
+    return;
+  }
+
+  Fancoil *fancoil = getFancoilByAddress(addr);
+
+  if (fancoil->resetWaterTemperatureFault(&MODBUS_SERIAL)) {
+    server.send(200, "text/plain", "ok");
+  } else {
+    server.send(500, "text/plain", "failed");
   }
 }
 
@@ -322,6 +359,8 @@ void handleSet() {
       fancoil->setMode(Mode::COOLING);
     } else if (mode == "HEATING") {
       fancoil->setMode(Mode::HEATING);
+    } else if (mode == "NONE") {
+      fancoil->setMode(Mode::NONE);
     } else {
       server.send(500, "application/json", "{\"error\": \"invalid mode provided\"}");
       return;

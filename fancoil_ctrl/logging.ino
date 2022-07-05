@@ -1,4 +1,4 @@
-#define USE_LOGGING2
+#define USE_LOGGING
 
 
 void setupLogging() {

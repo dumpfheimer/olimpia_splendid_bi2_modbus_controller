@@ -7,6 +7,7 @@ enum FanSpeed {
 enum Mode {
   COOLING = 0x10,
   HEATING = 0x01,
+  NONE = 0x00
 };
 enum SyncState {
   HAPPY = 0x11,
@@ -58,6 +59,9 @@ class Fancoil {
     bool swingReadOnce = false;
     bool ev1 = false;
     bool ev2 = false;
+    bool boiler = false;
+    bool chiller = false;
+    bool waterFault = false;
 
   public:
     bool lastReadChangedValues = false;
@@ -75,8 +79,8 @@ class Fancoil {
       return address;
     }
 
-    bool init(uint8_t addr) {
-      if (isInUse) return false;
+    void init(uint8_t addr) {
+      if (isInUse) return;
       on = false;
       isBusy = false;
       address = addr;
@@ -97,6 +101,9 @@ class Fancoil {
 
       ev1 = false;
       ev2 = false;
+      boiler = false;
+      chiller = false;
+      waterFault = false;
     }
 
     void setOn(bool set) {
@@ -182,6 +189,18 @@ class Fancoil {
       return ev2;
     }
 
+    bool chillerOn() {
+      return chiller;
+    }
+
+    bool boilerOn() {
+      return boiler;
+    }
+
+    bool hasWaterFault() {
+      return waterFault;
+    }
+
     SyncState getSyncState() {
       return syncState;
     }
@@ -230,7 +249,7 @@ class Fancoil {
         // do not read if we are writing
         return false;
       }
-      if (syncState == SyncState::INVALID) {
+      if (syncState == SyncState::INVALID && (millis() - lastRead) > 10000) {
         debugPrintln("read: invalid state");
         // we want to read if there was an error
         return true;
@@ -264,8 +283,10 @@ class Fancoil {
       uint8_t data1 = 0;
       if (mode == Mode::COOLING) {
         data1 = data1 | (1 << 6);
-      } else {
+      } else if (mode == Mode::HEATING) {
         data1 = data1 | (1 << 5);
+      } else {
+        // leave the 0s
       }
       if (absenceConditionForced) {
         //data1 = data1 | (1 << 4);
@@ -322,6 +343,7 @@ class Fancoil {
       }
 
       isBusy = false;
+      readState(stream);
       if (successfullWrites == 3) {
         syncState = SyncState::HAPPY;
         lastSend = millis();
@@ -352,9 +374,12 @@ class Fancoil {
         if (data1 & 0b01000000) {
           if (mode != Mode::COOLING) lastReadChangedValues = true;
           mode = Mode::COOLING;
-        } else {
+        } else if (data1 & 0b00100000) {
           if (mode != Mode::HEATING) lastReadChangedValues = true;
           mode = Mode::HEATING;
+        } else {
+          if (mode != Mode::NONE) lastReadChangedValues = true;
+          mode = Mode::NONE;
         }
 
         if (data1 & 0b00010000) {
@@ -417,12 +442,27 @@ class Fancoil {
         
         IncomingMessage valveRead = modbusReadRegister(stream, address, 9);
         if (valveRead.success()) {
-          ev1 = (valveRead.data[1] & 0b01000000) > 0;
-          ev2 = (valveRead.data[1] & 0b00001000) > 0;
+          ev1 =     (valveRead.data[1] & 0b01000000) > 0;
+          boiler =  (valveRead.data[1] & 0b00100000) > 0;
+          chiller = (valveRead.data[1] & 0b00010000) > 0;
+          ev2 =     (valveRead.data[1] & 0b00001000) > 0;
         } else {
           debugPrintln("read error");
           isBusy = false;
           return false;
+        }
+
+        if (on) {
+          IncomingMessage faultRead = modbusReadRegister(stream, address, 105);
+          if (faultRead.success()) {
+            waterFault = (faultRead.data[2] & 0b00010000) > 0;
+          } else {
+            debugPrintln("read error");
+            isBusy = false;
+            return false;
+          }
+        } else {
+          waterFault = false;
         }
 
         #if USE_DEVICE_TEMPERATURE
@@ -492,6 +532,42 @@ class Fancoil {
         server.send(501, "text/plain", "not valid");
         return false;
       }
+    }
+
+    bool resetWaterTemperatureFault(Stream* stream) {
+      while (isBusy) {}
+      isBusy = true;
+
+      IncomingMessage i = modbusReadRegister(stream, address, 105, 1);
+      if (i.valid) {
+        if (i.address == address && i.functionCode == 3) {
+          byte data1 = i.data[1];
+          byte data2 = i.data[2];
+          bool isFaulty = data2 & 0x00010000 > 0;
+
+          if (isFaulty) {
+            data2 = data2 & 0x11101111;
+  
+            IncomingMessage i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
+            isBusy = false;
+            
+            if (!i2.valid) {
+              return false;
+            }
+            if (i2.address == address && i2.functionCode == 6) {
+              return true;
+            } else {
+              return false;
+            }
+          } else {
+            isBusy = false;
+            return true;
+          }
+        }
+      }
+  
+      isBusy = false;
+      return false;
     }
     
     void loop(Stream *stream) {

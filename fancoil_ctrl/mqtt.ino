@@ -1,6 +1,8 @@
 #ifdef MQTT_HOST
 #include <PubSubClient.h>
 
+#define MQTT_USER_BUFFER_SIZE 128
+#define MQTT_PASS_BUFFER_SIZE 128
 #define TOPIC_BUFFER_SIZE 128
 #define MESSAGE_BUFFER_SIZE 512
 
@@ -10,6 +12,10 @@ PubSubClient client(wifiClient);
 String clientId;
 char* topicBuffer;
 char* messageBuffer;
+
+char* clientIdCharArray;
+char* mqttUserCharArray;
+char* mqttPassCharArray;
 
 boolean stateChanged = false;
 unsigned long lastSend = 0;
@@ -94,7 +100,7 @@ void sendFancoilState(Fancoil* fancoil) {
   state = String(fancoil->getAmbient());
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/state", state, false);
   
-  state = fancoil->ev1On() ? "ON" : "OFF";
+  state = fancoil->boilerOn() || fancoil->chillerOn() ? "ON" : "OFF";
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming/state", state, false);
 }
 
@@ -140,7 +146,7 @@ void sendHomeAssistantConfiguration() {
       publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config", "", true);
       publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config", "", true);
       publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config", "", true);
-      publishHelper("homeassistant/sbinary_ensor/" + clientId + "-" + addr + "/is_consuming/config", "", true);
+      publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config", "", true);
       publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config", "", true);
     }
   }
@@ -253,7 +259,7 @@ void mqttReconnect() {
         debugPrint("Reconnecting...");
         String lastWillTopic = "fancoil_ctrl/" + clientId + "/online/state";
         lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
-        if (!client.connect(MQTT_USER, MQTT_USER, MQTT_PASS, topicBuffer, true, 1, "OFF")) {
+        if (!client.connect(clientIdCharArray, MQTT_USER, MQTT_PASS, topicBuffer, true, 1, "OFF")) {
             debugPrint("failed, rc=");
             debugPrint(client.state());
             debugPrintln(" retrying in 5 seconds");
@@ -282,14 +288,18 @@ void setupMqtt() {
   
   clientId = WiFi.macAddress();
   clientId.replace(":", "-");
+  clientIdCharArray = (char*) malloc(sizeof(char) * (12+5));
+  clientId.toCharArray(clientIdCharArray, (12+5));
 
   sendHomeAssistantConfiguration();
 }
 
 void loopMqtt() {
   mqttReconnect();
-  client.loop();
-  if (stateChanged || (millis() - lastSend) > 30000) sendFancoilStates();
+  if (client.connected()) {
+    client.loop();
+    if (stateChanged || (millis() - lastSend) > 30000) sendFancoilStates();
+  }
 }
 
 #endif
