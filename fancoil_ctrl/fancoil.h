@@ -37,7 +37,7 @@ class Fancoil {
     AbsenceCondition absenceConditionForced = AbsenceCondition::NOT_FORCED;
 
     double setpoint = 22;
-    double ambientTemperature = 22;
+    double ambientTemperature = 21;
 
     // the last successful write
     unsigned long lastSend = 0;
@@ -86,7 +86,7 @@ class Fancoil {
       address = addr;
       isInUse = true;
       setpoint = 22;
-      ambientTemperature = 22;
+      ambientTemperature = 21;
       speed = FanSpeed::AUTOMATIC;
       mode = Mode::COOLING;
       absenceConditionForced = AbsenceCondition::NOT_FORCED;
@@ -164,7 +164,6 @@ class Fancoil {
     }
 
     void setAmbient(double newAmbient) {
-      #if !USE_DEVICE_TEMPERATURE
       if (newAmbient < 1) newAmbient = 1;
       if (newAmbient > 40) newAmbient = 40;
 
@@ -174,7 +173,6 @@ class Fancoil {
       if (ambientTemperature != newAmbient) syncState = SyncState::WRITING;
       ambientTemperature = newAmbient;
       lastAmbientSet = millis();
-      #endif
     }
     
     double getAmbient() {
@@ -329,14 +327,10 @@ class Fancoil {
         successfullWrites++;
       }
 
-      #if USE_DEVICE_TEMPERATURE
-      successfullWrites++;
-      #else
       if (modbusWriteRegister(stream, address, 103, (uint16_t) (getAmbient() * 10)).success()) {
         debugPrintln("write 3 was successfull");
         successfullWrites++;
       }
-      #endif
 
       if (!writeSwingIfNeeded(stream)) {
         successfullWrites--;
@@ -464,18 +458,6 @@ class Fancoil {
         } else {
           waterFault = false;
         }
-
-        #if USE_DEVICE_TEMPERATURE
-        IncomingMessage tempRes = modbusReadRegister(stream, address, 103);
-        if (tempRes.success()) {
-          uint16_t temp = (tempRes.data[1] << 8) | tempRes.data[2];
-          ambientTemperature = (double) temp / 10.0;
-        } else {
-          debugPrintln("read ambient temperature error");
-          isBusy = false;
-          return false;
-        }
-        #endif
 
         debugPrintln("read success");
         lastRead = millis();

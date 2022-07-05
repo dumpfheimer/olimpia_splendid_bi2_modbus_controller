@@ -181,7 +181,7 @@ void sendHomeAssistantConfiguration() {
     
     // ambient temp
     publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config",
-    "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_temperature\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
+    "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_temperature\", " + "\"cmd_t\": \"~/set\", " + "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
     subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
     
     // is consuming water
@@ -212,7 +212,7 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
 
   if (cmd == "set") {
     debugPrintln("Received set command for addr " + address + " property " + topicName);
-    Fancoil* f = getFancoilByAddress((int) id.toDouble());
+    Fancoil* f = getFancoilByAddress((int) address.toDouble());
     if (f != NULL) {
       char* msg_ba = (char*) malloc(sizeof(char) * (length + 1));
       memcpy(msg_ba, (char*) payload, length);
@@ -247,9 +247,13 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
         f->setSetpoint(msg.toDouble());
       } else if (topicName == "ambient_temperature") {
         f->setAmbient(msg.toDouble());
+      } else {
+        debugPrint("Unknown topicName: " + topicName);
       }
       free(msg_ba);
       notifyStateChanged();
+    } else {
+      debugPrint("No fancoil with address " + ((int) address.toDouble()));
     }
   }
 }
@@ -290,8 +294,6 @@ void setupMqtt() {
   clientId.replace(":", "-");
   clientIdCharArray = (char*) malloc(sizeof(char) * (12+5));
   clientId.toCharArray(clientIdCharArray, (12+5));
-
-  sendHomeAssistantConfiguration();
 }
 
 void loopMqtt() {

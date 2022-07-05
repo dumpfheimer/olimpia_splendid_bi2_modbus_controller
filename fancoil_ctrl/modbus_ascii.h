@@ -2,7 +2,7 @@
 
 unsigned long lastMessageAt = 0;
 unsigned long messageQuietTime = 25; // milliseconds between messages
-unsigned long readTimeout = 1000;
+unsigned long readTimeout = 500;
 
 class IncomingMessage {
   public:

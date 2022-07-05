@@ -10,9 +10,3 @@ const char* wifiHost = "FancoilCtrl";
 #define MQTT_USER ""
 #define MQTT_PASS ""
 */
-// if set to false the ambient temperature must be set regularly over http or mqtt
-#define USE_DEVICE_TEMPERATURE true
-
-#if USE_DEVICE_TEMPERATURE
-#undef AMBIENT_TEMPERATURE_TIMEOUT_S
-#endif
