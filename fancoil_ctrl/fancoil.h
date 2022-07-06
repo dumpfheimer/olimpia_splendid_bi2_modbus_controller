@@ -45,9 +45,9 @@ class Fancoil {
 
     // the last receive time
     unsigned long lastAmbientSet = 0;
-    #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
+#ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     unsigned long ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
-    #endif
+#endif
 
     // the last successful read
     unsigned long lastRead = 0;
@@ -62,18 +62,18 @@ class Fancoil {
     bool boiler = false;
     bool chiller = false;
     bool waterFault = false;
-    #ifdef LOAD_WATER_TEMP
+#ifdef LOAD_WATER_TEMP
     double waterTemp = 0;
-    #endif
+#endif
 
   public:
     bool lastReadChangedValues = false;
     bool isInUse = false;
-    
+
     Fancoil() {
       init(0);
     }
-    
+
     Fancoil(uint8_t add) {
       init(add);
     }
@@ -97,9 +97,9 @@ class Fancoil {
 
       sendPeriod = 60000;
       readPeriod = 30000;
-      #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
+#ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
       ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
-      #endif
+#endif
       communicationTimer = 0;
 
       ev1 = false;
@@ -107,9 +107,9 @@ class Fancoil {
       boiler = false;
       chiller = false;
       waterFault = false;
-      #ifdef LOAD_WATER_TEMP
+#ifdef LOAD_WATER_TEMP
       waterTemp = 0;
-      #endif
+#endif
     }
 
     void setOn(bool set) {
@@ -131,16 +131,16 @@ class Fancoil {
     void setSwing(bool swingOnSet) {
       swingOn = swingOnSet;
     }
-    
+
     bool isSwingOn() {
       return swingOn;
     }
-    
+
     void setSpeed(FanSpeed newSpeed) {
       if (speed != newSpeed) syncState = SyncState::WRITING;
       speed = newSpeed;
     }
-    
+
     FanSpeed getSpeed() {
       return speed;
     }
@@ -149,7 +149,7 @@ class Fancoil {
       if (mode != m) syncState = SyncState::WRITING;
       mode = m;
     }
-    
+
     Mode getMode() {
       return mode;
     }
@@ -164,7 +164,7 @@ class Fancoil {
       if (setpoint != newSetpoint) syncState = SyncState::WRITING;
       setpoint = newSetpoint;
     }
-    
+
     double getSetpoint() {
       return setpoint;
     }
@@ -180,16 +180,16 @@ class Fancoil {
       ambientTemperature = newAmbient;
       lastAmbientSet = millis();
     }
-    
+
     double getAmbient() {
       return ambientTemperature;
     }
-    
-    #ifdef LOAD_WATER_TEMP
+
+#ifdef LOAD_WATER_TEMP
     double getWaterTemp() {
       return waterTemp;
     }
-    #endif
+#endif
 
     bool ev1On() {
       return ev1;
@@ -216,15 +216,15 @@ class Fancoil {
     }
 
     bool ambientTemperatureIsValid() {
-      #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
+#ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
       if ((millis() - lastAmbientSet) < ambientSetTimeout * 1000) {
         return true;
       } else {
         return false;
       }
-      #else
+#else
       return true;
-      #endif
+#endif
     }
 
     bool readTimeout() {
@@ -328,12 +328,12 @@ class Fancoil {
         debugPrintln("write 1 was successfull");
         successfullWrites++;
       }
-      
+
       double writeSetpoint = getSetpoint();
       if (fanOnly) {
         writeSetpoint = 30;
       }
-      
+
       if (modbusWriteRegister(stream, address, 102, (uint16_t) (writeSetpoint * 10)).success()) {
         debugPrintln("write 2 was successfull");
         successfullWrites++;
@@ -389,7 +389,7 @@ class Fancoil {
         }
 
         if (data1 & 0b00010000) {
-          if (absenceConditionForced != AbsenceCondition::FORCED) lastReadChangedValues = true;
+        if (absenceConditionForced != AbsenceCondition::FORCED) lastReadChangedValues = true;
           absenceConditionForced = AbsenceCondition::FORCED;
         } else {
           if (absenceConditionForced != AbsenceCondition::NOT_FORCED) lastReadChangedValues = true;
@@ -457,8 +457,8 @@ class Fancoil {
           isBusy = false;
           return false;
         }
-        
-        #ifdef LOAD_WATER_TEMP
+
+#ifdef LOAD_WATER_TEMP
         IncomingMessage waterTempRead = modbusReadRegister(stream, address, 1);
         if (waterTempRead.success()) {
           waterTemp = (waterTempRead.data[1] << 8 | waterTempRead.data[2]) / 10;
@@ -467,7 +467,7 @@ class Fancoil {
           isBusy = false;
           return false;
         }
-        #endif
+#endif
 
         if (on) {
           IncomingMessage faultRead = modbusReadRegister(stream, address, 104);
@@ -485,10 +485,10 @@ class Fancoil {
         debugPrintln("read success");
         lastRead = millis();
 
-        #ifdef MQTT_HOST
+#ifdef MQTT_HOST
         if (lastReadChangedValues) notifyStateChanged();
-        #endif
-        
+#endif
+
         isBusy = false;
         return true;
       } else {
@@ -497,7 +497,7 @@ class Fancoil {
         return false;
       }
     }
-    
+
     bool writeSwingIfNeeded(Stream *stream) {
       if (noSwing) {
         return true;
@@ -516,7 +516,7 @@ class Fancoil {
             return true;
           } else {
             data1 = data1 ^ 0b10; // flip that bit! = toggle
-            
+
             IncomingMessage i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
             if (!i2.valid) {
               server.send(501, "text/plain", "write invalid");
@@ -552,10 +552,10 @@ class Fancoil {
 
           if (isFaulty) {
             data2 = data2 & 0x10111111;
-  
+
             IncomingMessage i2 = modbusWriteRegister(stream, address, 104, (data1 << 8) | data2);
             isBusy = false;
-            
+
             if (!i2.valid) {
               return false;
             }
@@ -570,11 +570,11 @@ class Fancoil {
           }
         }
       }
-  
+
       isBusy = false;
       return false;
     }
-    
+
     void loop(Stream *stream) {
       debugPrintln("loop");
       // 1. check if values have been received over network recently

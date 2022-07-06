@@ -140,6 +140,10 @@ void handleGet() {
         ret += "\"waterFault\": false, ";
     }
     
+    #ifdef LOAD_WATER_TEMP
+    ret += "\"waterTemp\": \"" + String(fancoil->getWaterTemp()) + "\", ";
+    #endif
+    
     switch (fancoil->getSyncState()) {
       case SyncState::HAPPY:
         ret += "\"syncState\": \"HAPPY\"";
@@ -419,6 +423,21 @@ void handleChangeAddress() {
     server.send(500, "text/plain", "address changed seems to have failed");
   }
 }
+
+void handleModbusReadCount() {
+  server.send(200, "text/plain", String(modbusReadCount));
+}
+
+void handleModbusReadErrors() {
+  server.send(200, "text/plain", String(modbusReadErrors));
+}
+
+
+void handleModbusErrorRatio() {
+  server.send(200, "text/plain", String(modbusReadErrors * 100 / modbusReadCount) + "% errors");
+}
+
+
 /*
 void handleSwing() {
   uint8_t addr = getAddress();
@@ -445,6 +464,10 @@ void setupHttp() {
   server.on("/list", handleList);
   server.on("/factoryReset", HTTP_POST, handleFactoryReset);
   server.on("/resetWaterTemperatureFault", handleResetWaterTemperatureFault);
+  
+  server.on("/modbusReadCount", handleModbusReadCount);
+  server.on("/modbusReadErrors", handleModbusReadErrors);
+  server.on("/modbusErrorRatio", handleModbusErrorRatio);
 
   //server.on("/setAmbient", HTTP_POST, handleSetAmbient);
   //server.on("/setSetpoint", HTTP_POST, handleSetSetpoint);

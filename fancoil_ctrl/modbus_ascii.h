@@ -3,6 +3,8 @@
 unsigned long lastMessageAt = 0;
 unsigned long messageQuietTime = 25; // milliseconds between messages
 unsigned long readTimeout = 500;
+unsigned long modbusReadErrors = 0;
+unsigned long modbusReadCount = 0;
 
 class IncomingMessage {
   public:
@@ -93,6 +95,7 @@ void printByte(byte b, Stream *stream) {
 
 IncomingMessage modbusRead(Stream *stream) {
   preReceive();
+  modbusReadCount++;
   IncomingMessage ret;
   char c = 0;
   long start = millis();
@@ -119,6 +122,7 @@ IncomingMessage modbusRead(Stream *stream) {
           if (readBufferPos < 2) {
             debugPrintln("message too short");
             postReceive();
+            modbusReadErrors++;
             return ret;
           }
           int dataPos = 0;
@@ -155,6 +159,7 @@ IncomingMessage modbusRead(Stream *stream) {
             debugPrintln("CRC is invalid");
             ret.valid = false;
             postReceive();
+            modbusReadErrors++;
             return ret;
           }
           ret.valid = true;
@@ -183,6 +188,7 @@ IncomingMessage modbusRead(Stream *stream) {
     //debugPrintln(readBuffer);
     lastMessageAt = millis();
     postReceive();
+    modbusReadErrors++;
     return ret;
   } else {
     debugPrintln("No begin sign");
