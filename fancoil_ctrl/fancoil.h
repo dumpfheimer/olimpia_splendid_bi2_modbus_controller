@@ -150,7 +150,7 @@ class Fancoil {
 
     void setSetpoint(double newSetpoint) {
       if (newSetpoint < 15) newSetpoint = 15;
-      if (newSetpoint > 30) newSetpoint = 30;
+      if (newSetpoint > 40) newSetpoint = 40;
 
       uint16_t intVal = newSetpoint * 10;
       newSetpoint = (double) intVal / (double) 10;
@@ -165,7 +165,7 @@ class Fancoil {
 
     void setAmbient(double newAmbient) {
       if (newAmbient < 1) newAmbient = 1;
-      if (newAmbient > 40) newAmbient = 40;
+      if (newAmbient > 45) newAmbient = 45;
 
       uint16_t intVal = newAmbient * 10;
       newAmbient = (double) intVal / (double) 10;
@@ -433,7 +433,7 @@ class Fancoil {
             }
           }
         }
-        
+
         IncomingMessage valveRead = modbusReadRegister(stream, address, 9);
         if (valveRead.success()) {
           ev1 =     (valveRead.data[1] & 0b01000000) > 0;
@@ -447,9 +447,9 @@ class Fancoil {
         }
 
         if (on) {
-          IncomingMessage faultRead = modbusReadRegister(stream, address, 105);
+          IncomingMessage faultRead = modbusReadRegister(stream, address, 104);
           if (faultRead.success()) {
-            waterFault = (faultRead.data[2] & 0b00010000) > 0;
+            waterFault = (faultRead.data[2] & 0b01000000) > 0;
           } else {
             debugPrintln("read error");
             isBusy = false;
@@ -520,17 +520,17 @@ class Fancoil {
       while (isBusy) {}
       isBusy = true;
 
-      IncomingMessage i = modbusReadRegister(stream, address, 105, 1);
+      IncomingMessage i = modbusReadRegister(stream, address, 104, 1);
       if (i.valid) {
         if (i.address == address && i.functionCode == 3) {
           byte data1 = i.data[1];
           byte data2 = i.data[2];
-          bool isFaulty = data2 & 0x00010000 > 0;
+          bool isFaulty = data2 & 0x01000000 > 0;
 
           if (isFaulty) {
-            data2 = data2 & 0x11101111;
+            data2 = data2 & 0x10111111;
   
-            IncomingMessage i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
+            IncomingMessage i2 = modbusWriteRegister(stream, address, 104, (data1 << 8) | data2);
             isBusy = false;
             
             if (!i2.valid) {

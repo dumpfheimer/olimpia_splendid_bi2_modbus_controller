@@ -320,8 +320,8 @@ void handleSet() {
     if (ambient < 15) {
       ambient = 15;
     }
-    if (ambient > 35) {
-      ambient = 35;
+    if (ambient > 45) {
+      ambient = 45;
     }
     fancoil->setAmbient(ambient);
   }
@@ -444,6 +444,7 @@ void setupHttp() {
   server.on("/unregister", HTTP_POST, handleUnregister);
   server.on("/list", handleList);
   server.on("/factoryReset", HTTP_POST, handleFactoryReset);
+  server.on("/resetWaterTemperatureFault", handleResetWaterTemperatureFault);
 
   //server.on("/setAmbient", HTTP_POST, handleSetAmbient);
   //server.on("/setSetpoint", HTTP_POST, handleSetSetpoint);
