@@ -125,7 +125,7 @@ void sendHomeAssistantConfiguration() {
   "{\"~\": \"fancoil_ctrl/" + clientId + "/ip\", \"name\": \"Fancoil controller " + clientId + " IP Address\", \"unique_id\": \"fancoil_" + clientId + "_ip\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "\", \"name\": \"Fancoil controller " + clientId + "\", \"cu\": \"http://" + WiFi.localIP().toString() + "/\"}}", true);
   
 
-  for (uint8_t addr_i = 0; addr_i <= 32; addr_i++) {
+  for (uint8_t addr_i = 1; addr_i <= 32; addr_i++) {
     String addr = String(addr_i);
     Fancoil *fancoil = getFancoilByAddress(addr_i);
     if (fancoil != NULL) {
