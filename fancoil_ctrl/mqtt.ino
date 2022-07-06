@@ -51,13 +51,13 @@ void sendFancoilState(Fancoil* fancoil) {
     case SyncState::HAPPY:
     case SyncState::WRITING:
       if (fancoil->ambientTemperatureIsValid()) {
-          state = "CONNECTED";
+          state = "online";
       } else {
-        state = "INVALID_AMBIENT_TEMPERATURE";
+        state = "offline";
       }
       break;
     default:
-      state = "DISCONNECTED";
+      state = "offline";
       break;
   }
 

@@ -46,7 +46,7 @@ class Fancoil {
     // the last receive time
     unsigned long lastAmbientSet = 0;
     #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
-    unsigned long ambientSetTimeout = 600000; // 10 min
+    unsigned long ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
     #endif
 
     // the last successful read
@@ -62,6 +62,9 @@ class Fancoil {
     bool boiler = false;
     bool chiller = false;
     bool waterFault = false;
+    #ifdef LOAD_WATER_TEMP
+    double waterTemp = 0;
+    #endif
 
   public:
     bool lastReadChangedValues = false;
@@ -95,7 +98,7 @@ class Fancoil {
       sendPeriod = 60000;
       readPeriod = 30000;
       #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
-      ambientSetTimeout = 600000; // 10 min
+      ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
       #endif
       communicationTimer = 0;
 
@@ -104,6 +107,9 @@ class Fancoil {
       boiler = false;
       chiller = false;
       waterFault = false;
+      #ifdef LOAD_WATER_TEMP
+      waterTemp = 0;
+      #endif
     }
 
     void setOn(bool set) {
@@ -178,6 +184,12 @@ class Fancoil {
     double getAmbient() {
       return ambientTemperature;
     }
+    
+    #ifdef LOAD_WATER_TEMP
+    double getWaterTemp() {
+      return waterTemp;
+    }
+    #endif
 
     bool ev1On() {
       return ev1;
@@ -205,7 +217,7 @@ class Fancoil {
 
     bool ambientTemperatureIsValid() {
       #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
-      if ((millis() - lastAmbientSet) < ambientSetTimeout) {
+      if ((millis() - lastAmbientSet) < ambientSetTimeout * 1000) {
         return true;
       } else {
         return false;
@@ -445,6 +457,17 @@ class Fancoil {
           isBusy = false;
           return false;
         }
+        
+        #ifdef LOAD_WATER_TEMP
+        IncomingMessage waterTempRead = modbusReadRegister(stream, address, 1);
+        if (waterTempRead.success()) {
+          waterTemp = (waterTempRead.data[1] << 8 | waterTempRead.data[2]) / 10;
+        } else {
+          debugPrintln("read error");
+          isBusy = false;
+          return false;
+        }
+        #endif
 
         if (on) {
           IncomingMessage faultRead = modbusReadRegister(stream, address, 104);
