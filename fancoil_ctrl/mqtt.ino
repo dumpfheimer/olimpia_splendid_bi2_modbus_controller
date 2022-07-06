@@ -4,7 +4,7 @@
 #define MQTT_USER_BUFFER_SIZE 128
 #define MQTT_PASS_BUFFER_SIZE 128
 #define TOPIC_BUFFER_SIZE 128
-#define MESSAGE_BUFFER_SIZE 512
+#define MESSAGE_BUFFER_SIZE 1024
 
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
@@ -65,13 +65,13 @@ void sendFancoilState(Fancoil* fancoil) {
     
   switch (fancoil->getSpeed()) {
     case FanSpeed::MAX:
-      state = "max";
+      state = "high";
       break;
     case FanSpeed::NIGHT:
       state = "night";
       break;
     case FanSpeed::MIN:
-      state = "min";
+      state = "low";
       break;
     case FanSpeed::AUTOMATIC:
       state = "auto";
@@ -144,9 +144,9 @@ void sendHomeAssistantConfiguration() {
       "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\"]}", true);
       subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
       
-      //fan speed: auto, night, min, max
+      //fan speed: auto, night, low, high
       publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config",
-      "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed\", \"name\": \"Fancoil " + clientId + "-" + addr + " fan speed\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_fan_speed\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"auto\", \"min\", \"max\", \"night\"]}", true);
+      "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed\", \"name\": \"Fancoil " + clientId + "-" + addr + " fan speed\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_fan_speed\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"auto\", \"low\", \"high\", \"night\"]}", true);
       subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set");
       
       // setpoint
@@ -221,9 +221,9 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
       } else if (topicName == "fan_speed") {
         if (msg == "auto") {
           f->setSpeed(FanSpeed::AUTOMATIC);
-        } else if (msg == "min") {
+        } else if (msg == "low" ) {
           f->setSpeed(FanSpeed::MIN);
-        } else if (msg == "max") {
+        } else if (msg == "high") {
           f->setSpeed(FanSpeed::MAX);
         } else if (msg == "night") {
           f->setSpeed(FanSpeed::NIGHT);
