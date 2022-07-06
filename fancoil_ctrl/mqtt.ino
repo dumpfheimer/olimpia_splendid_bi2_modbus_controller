@@ -82,9 +82,9 @@ void sendFancoilState(Fancoil* fancoil) {
   if (fancoil->isFanOnly()) {
       state = "fan_only";
   } else if (fancoil->getMode() == Mode::COOLING) {
-      state = "cooling";
+      state = "cool";
   } else {
-      state = "heating";
+      state = "heat";
   }
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/state", state, false);
 
@@ -141,7 +141,7 @@ void sendHomeAssistantConfiguration() {
     
       //mode: heating cooling
       publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config",
-      "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heating\", \"cooling\", \"fan_only\"]}", true);
+      "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\"]}", true);
       subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
       
       //fan speed: auto, night, min, max
@@ -209,10 +209,10 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
       } else if (topicName == "swing") {
         f->setSwing(isTrue(msg));
       } else if (topicName == "mode") {
-        if (msg == "heating") {
+        if (msg == "heat") {
           f->setMode(Mode::HEATING);
           f->setFanOnly(false);
-        } else if (msg == "cooling") {
+        } else if (msg == "cool") {
           f->setMode(Mode::COOLING);
           f->setFanOnly(false);
         } else {
