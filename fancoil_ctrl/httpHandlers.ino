@@ -23,8 +23,12 @@ void releaseLock() {
   isLocked = false;
 }
 
+void handleScript() {
+  server.send(200, "application/javascript", "async function debug() {let html=\"<table><thead><tr><td>Addr</td><td>Val (dec)<td></tr></thead><tbody>\"; let s = document.getElementById('debugOut'); let e = document.getElementById('debugAddress'); let a = e.value; let ret = {}; for (let i = 0; i < 254; i++) { s.innerText = 'Loading register ' + i; let x = await fetch(\"/read?addr=\" + a + \"&reg=\" + i + \"&len=1\"); let t = await x.text(); t = t.substr(t.indexOf(\"dec:\") + 5); ret[i] = parseInt(t); html += \"<tr><td>\" + i + \"</td><td>\" + t + \"</td></tr>\";}; html +=\"</tbody></table>Base64: \" + btoa(JSON.stringify(ret)); s.innerHTML = html;}");
+}
+
 void handleRoot() {
-  server.send(200, "text/html", "<html><body><a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\">Github page for help</a></br><form method=\"POST\" action=\"register\"><h3>Register fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"unregister\"><h3>Unregister fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"changeAddress\"><h3>Change fancoil address</h3><br/>Source Address (factory default is 0)<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"sourceAddress\"><br/>Target Address (1-32):<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"targetAddress\"><br/><input type=\"submit\"></form></body></html>");
+  server.send(200, "text/html", "<html><head><script src=\"s.js\"></script></head><body><a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\">Github page for help</a></br><form method=\"POST\" action=\"register\"><h3>Register fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"unregister\"><h3>Unregister fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"changeAddress\"><h3>Change fancoil address</h3><br/>Source Address (factory default is 0)<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"sourceAddress\"><br/>Target Address (1-32):<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"targetAddress\"><br/><input type=\"submit\"></form><h3>Debug</h3>Fan coil address:<br/><input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\"><button onclick=\"debug()\">Debug</button><div id=\"debugOut\"></div></body></html>");
 }
 
 void handleGet() {
@@ -457,6 +461,7 @@ void handleSwing() {
 
 void setupHttp() {
   server.on("/", handleRoot);
+  server.on("/s.js", handleScript);
   server.on("/get", handleGet);
   server.on("/read", handleRead);
   server.on("/register", HTTP_POST, handleRegister);
