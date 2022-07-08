@@ -194,6 +194,7 @@ IncomingMessage modbusRead(Stream *stream) {
     debugPrintln("No begin sign");
     ret.valid = false;
     postReceive();
+    modbusReadErrors++;
     return ret;
   }
 }
