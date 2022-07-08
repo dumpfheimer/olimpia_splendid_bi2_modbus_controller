@@ -79,12 +79,14 @@ void sendFancoilState(Fancoil* fancoil) {
   }
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state", state, false);
 
-  if (fancoil->isFanOnly()) {
+  if (fancoil->getMode() == Mode::FAN_ONLY) {
       state = "fan_only";
   } else if (fancoil->getMode() == Mode::COOLING) {
       state = "cool";
-  } else {
+  } else if (fancoil->getMode() == Mode::HEATING) {
       state = "heat";
+  } else {
+      state = "auto";
   }
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/state", state, false);
 
@@ -209,7 +211,10 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
       } else if (topicName == "swing") {
         f->setSwing(isTrue(msg));
       } else if (topicName == "mode") {
-        if (msg == "heat") {
+        if (msg == "fan_only") {
+          f->setMode(Mode::FAN_ONLY);
+          f->setFanOnly(false);
+        } else if (msg == "heat") {
           f->setMode(Mode::HEATING);
           f->setFanOnly(false);
         } else if (msg == "cool") {

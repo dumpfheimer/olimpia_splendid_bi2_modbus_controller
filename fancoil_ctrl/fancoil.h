@@ -7,7 +7,8 @@ enum FanSpeed {
 enum Mode {
   COOLING = 0x10,
   HEATING = 0x01,
-  NONE = 0x00
+  AUTO = 0x00,
+  FAN_ONLY = 0x11
 };
 enum SyncState {
   HAPPY = 0x11,
@@ -295,6 +296,8 @@ class Fancoil {
         data1 = data1 | (1 << 6);
       } else if (mode == Mode::HEATING) {
         data1 = data1 | (1 << 5);
+      } else if (mode == Mode::FAN_ONLY) {
+        data1 = data1 | (1 << 5) | (1 << 6);
       } else {
         // leave the 0s
       }
@@ -377,15 +380,18 @@ class Fancoil {
 
         communicationTimer = data1 & 0x0F;
 
-        if (data1 & 0b01000000) {
+        if (data1 & 0b01100000) {
+          if (mode != Mode::FAN_ONLY) lastReadChangedValues = true;
+          mode = Mode::FAN_ONLY;
+        } else if (data1 & 0b01000000) {
           if (mode != Mode::COOLING) lastReadChangedValues = true;
           mode = Mode::COOLING;
         } else if (data1 & 0b00100000) {
           if (mode != Mode::HEATING) lastReadChangedValues = true;
           mode = Mode::HEATING;
         } else {
-          if (mode != Mode::NONE) lastReadChangedValues = true;
-          mode = Mode::NONE;
+          if (mode != Mode::AUTO) lastReadChangedValues = true;
+          mode = Mode::AUTO;
         }
 
         if (data1 & 0b00010000) {

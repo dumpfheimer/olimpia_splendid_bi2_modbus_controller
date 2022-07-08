@@ -45,7 +45,7 @@ void handleGet() {
     server.send(404, "text/plain", "address not registered");
   } else {
     String ret = "{";
-    ret += "\"address\": \"" + String(fancoil->getAddress(), HEX) + "\",";
+    ret += "\"address\": " + String(fancoil->getAddress(), HEX) + ",";
     ret += "\"setpoint\": " + String(fancoil->getSetpoint()) + ",";
     ret += "\"ambient\": " + String(fancoil->getAmbient()) + ",";
     
@@ -82,12 +82,14 @@ void handleGet() {
         break;
     }
     
-    if (fancoil->getMode() == Mode::COOLING) {
+    if (fancoil->getMode() == Mode::FAN_ONLY) {
+        ret += "\"mode\": \"FAN_ONLY\", ";
+    } else if (fancoil->getMode() == Mode::COOLING) {
         ret += "\"mode\": \"COOLING\", ";
     } else if (fancoil->getMode() == Mode::HEATING) {
         ret += "\"mode\": \"HEATING\", ";
     } else {
-        ret += "\"mode\": \"NONE\", ";
+        ret += "\"mode\": \"AUTO\", ";
     }
 
     if (fancoil->ambientTemperatureIsValid()) {
@@ -145,7 +147,7 @@ void handleGet() {
     }
     
     #ifdef LOAD_WATER_TEMP
-    ret += "\"waterTemp\": \"" + String(fancoil->getWaterTemp()) + "\", ";
+    ret += "\"waterTemp\": " + String(fancoil->getWaterTemp()) + ", ";
     #endif
     
     switch (fancoil->getSyncState()) {
@@ -187,6 +189,30 @@ void handleRead() {
     server.send(500, "text/plain", "fan coil returned error");
   } else {
     server.send(200, "text/plain", String(i.data[1], HEX) + " " + String(i.data[2], HEX) + " bin: " +  String(i.data[1], BIN) + " " + String(i.data[2], BIN) + " dec: " + String((i.data[1] << 8) | i.data[2], DEC));
+  }
+}
+
+void handleWrite() {
+  uint8_t addr = getAddress();
+  
+  if (!(addr > 0 && addr <= 32)) {
+    server.send(500, "text/plain", "address must be between 1 and 32");
+    return;
+  }
+
+  Fancoil *fancoil = getFancoilByAddress(addr);
+
+  uint16_t reg = server.arg("reg").toDouble();
+  uint16_t val = server.arg("val").toDouble();
+
+  IncomingMessage i = modbusWriteRegister(&MODBUS_SERIAL, addr, reg, val);
+
+  if (!i.valid) {
+    server.send(500, "text/plain", "invalid or no response");
+  } else if (i.isError) {
+    server.send(500, "text/plain", "fan coil returned error");
+  } else {
+    server.send(200, "text/plain", "ok");
   }
 }
 
@@ -363,12 +389,14 @@ void handleSet() {
   if (server.hasArg("mode")) {
     String mode = server.arg("mode");
     
-    if (mode == "COOLING") {
+    if (mode == "FAN_ONLY") {
+      fancoil->setMode(Mode::FAN_ONLY);
+    } else if (mode == "COOLING") {
       fancoil->setMode(Mode::COOLING);
     } else if (mode == "HEATING") {
       fancoil->setMode(Mode::HEATING);
-    } else if (mode == "NONE") {
-      fancoil->setMode(Mode::NONE);
+    } else if (mode == "AUTO") {
+      fancoil->setMode(Mode::AUTO);
     } else {
       server.send(500, "application/json", "{\"error\": \"invalid mode provided\"}");
       return;
@@ -464,6 +492,7 @@ void setupHttp() {
   server.on("/s.js", handleScript);
   server.on("/get", handleGet);
   server.on("/read", handleRead);
+  server.on("/write", HTTP_POST, handleWrite);
   server.on("/register", HTTP_POST, handleRegister);
   server.on("/unregister", HTTP_POST, handleUnregister);
   server.on("/list", handleList);
