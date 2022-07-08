@@ -55,7 +55,6 @@ class Fancoil {
     unsigned long readPeriod = 40000;
 
     byte communicationTimer = 0;
-    bool fanOnly = false;
     bool swingOn = true;
     bool swingReadOnce = false;
     bool ev1 = false;
@@ -119,14 +118,6 @@ class Fancoil {
     }
     bool isOn() {
       return on;
-    }
-
-    void setFanOnly(bool fanOnly_) {
-      fanOnly = fanOnly_;
-    }
-
-    bool isFanOnly() {
-      return fanOnly;
     }
 
     void setSwing(bool swingOnSet) {
@@ -333,9 +324,6 @@ class Fancoil {
       }
 
       double writeSetpoint = getSetpoint();
-      if (fanOnly) {
-        writeSetpoint = 30;
-      }
 
       if (modbusWriteRegister(stream, address, 102, (uint16_t) (writeSetpoint * 10)).success()) {
         debugPrintln("write 2 was successfull");

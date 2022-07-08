@@ -213,15 +213,12 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
       } else if (topicName == "mode") {
         if (msg == "fan_only") {
           f->setMode(Mode::FAN_ONLY);
-          f->setFanOnly(false);
         } else if (msg == "heat") {
           f->setMode(Mode::HEATING);
-          f->setFanOnly(false);
         } else if (msg == "cool") {
           f->setMode(Mode::COOLING);
-          f->setFanOnly(false);
-        } else {
-          f->setFanOnly(true);
+        } else if (msg == "auto") {
+          f->setMode(Mode::AUTO);
         }
       } else if (topicName == "fan_speed") {
         if (msg == "auto") {

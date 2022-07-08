@@ -104,12 +104,6 @@ void handleGet() {
         ret += "\"readTimeout\": false, ";
     }
     
-    if (fancoil->isFanOnly()) {
-        ret += "\"fanonly\": true, ";
-    } else {
-        ret += "\"fanonly\": false, ";
-    }
-    
     if (fancoil->isSwingOn()) {
         ret += "\"swing\": true, ";
     } else {
@@ -343,10 +337,6 @@ void handleSet() {
 
   if (server.hasArg("on")) {
     fancoil->setOn(isTrue(server.arg("on")));
-  }
-  
-  if (server.hasArg("fanonly")) {
-    fancoil->setFanOnly(isTrue(server.arg("fanonly")));
   }
 
   if (server.hasArg("ambient")) {
