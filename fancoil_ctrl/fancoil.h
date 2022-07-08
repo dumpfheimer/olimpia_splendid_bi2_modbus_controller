@@ -368,7 +368,7 @@ class Fancoil {
 
         communicationTimer = data1 & 0x0F;
 
-        if (data1 & 0b01100000) {
+        if ((data1 & 0b01000000) && (data1 & 0b00100000)) {
           if (mode != Mode::FAN_ONLY) lastReadChangedValues = true;
           mode = Mode::FAN_ONLY;
         } else if (data1 & 0b01000000) {

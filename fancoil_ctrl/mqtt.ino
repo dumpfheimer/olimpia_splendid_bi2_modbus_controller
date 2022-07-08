@@ -86,7 +86,11 @@ void sendFancoilState(Fancoil* fancoil) {
   } else if (fancoil->getMode() == Mode::HEATING) {
       state = "heat";
   } else {
-      state = "auto";
+      if (fancoil->isOn()) {
+        state = "auto";
+      } else {
+        state = "off";
+      }
   }
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/state", state, false);
 
@@ -143,7 +147,7 @@ void sendHomeAssistantConfiguration() {
     
       //mode: heating cooling
       publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config",
-      "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\"]}", true);
+      "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"auto\", \"off\"]}", true);
       subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
       
       //fan speed: auto, night, low, high
@@ -212,13 +216,19 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
         f->setSwing(isTrue(msg));
       } else if (topicName == "mode") {
         if (msg == "fan_only") {
+          f->setOn(true);
           f->setMode(Mode::FAN_ONLY);
         } else if (msg == "heat") {
+          f->setOn(true);
           f->setMode(Mode::HEATING);
         } else if (msg == "cool") {
+          f->setOn(true);
           f->setMode(Mode::COOLING);
         } else if (msg == "auto") {
+          f->setOn(true);
           f->setMode(Mode::AUTO);
+        } else if (msg == "off") {
+          f->setOn(false);
         }
       } else if (topicName == "fan_speed") {
         if (msg == "auto") {
@@ -239,6 +249,10 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
       }
       free(msg_ba);
       notifyStateChanged();
+      
+      if (f->writeTo(&MODBUS_SERIAL)) {
+        // ok
+      }
     } else {
       debugPrint("No fancoil with address " + ((int) address.toDouble()));
     }
