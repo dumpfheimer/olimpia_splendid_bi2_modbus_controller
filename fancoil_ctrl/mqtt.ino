@@ -79,18 +79,16 @@ void sendFancoilState(Fancoil* fancoil) {
   }
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state", state, false);
 
-  if (fancoil->getMode() == Mode::FAN_ONLY) {
+  if (!fancoil->isOn()) {
+      state = "off";
+  } else if (fancoil->getMode() == Mode::FAN_ONLY) {
       state = "fan_only";
   } else if (fancoil->getMode() == Mode::COOLING) {
       state = "cool";
   } else if (fancoil->getMode() == Mode::HEATING) {
       state = "heat";
   } else {
-      if (fancoil->isOn()) {
-        state = "auto";
-      } else {
-        state = "off";
-      }
+      state = "auto";
   }
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/state", state, false);
 
