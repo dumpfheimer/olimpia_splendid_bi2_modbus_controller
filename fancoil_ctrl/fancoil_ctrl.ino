@@ -40,10 +40,9 @@ void setup()
   digitalWrite(READ_ENABLE_PIN, 1);
   digitalWrite(DRIVER_ENABLE_PIN, 0);
 
+  setupModbus();
   setupLogging();
 
-  IncomingMessage m;
-  
   modbusSerial.begin(9600, SWSERIAL_7E1);
   modbusSerial.setTimeout(500);
   

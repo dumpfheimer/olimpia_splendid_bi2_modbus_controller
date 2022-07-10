@@ -175,14 +175,14 @@ void handleRead() {
   uint16_t reg = server.arg("reg").toDouble();
   uint16_t len = server.arg("len").toDouble();
 
-  IncomingMessage i = modbusReadRegister(&MODBUS_SERIAL, addr, reg, len);
+  IncomingMessage* i = modbusReadRegister(&MODBUS_SERIAL, addr, reg, len);
 
-  if (!i.valid) {
+  if (!i->valid) {
     server.send(500, "text/plain", "invalid or no response");
-  } else if (i.isError) {
+  } else if (i->isError) {
     server.send(500, "text/plain", "fan coil returned error");
   } else {
-    server.send(200, "text/plain", String(i.data[1], HEX) + " " + String(i.data[2], HEX) + " bin: " +  String(i.data[1], BIN) + " " + String(i.data[2], BIN) + " dec: " + String((i.data[1] << 8) | i.data[2], DEC));
+    server.send(200, "text/plain", String(i->data[1], HEX) + " " + String(i->data[2], HEX) + " bin: " +  String(i->data[1], BIN) + " " + String(i->data[2], BIN) + " dec: " + String((i->data[1] << 8) | i->data[2], DEC));
   }
 }
 
@@ -199,11 +199,11 @@ void handleWrite() {
   uint16_t reg = server.arg("reg").toDouble();
   uint16_t val = server.arg("val").toDouble();
 
-  IncomingMessage i = modbusWriteRegister(&MODBUS_SERIAL, addr, reg, val);
+  IncomingMessage* i = modbusWriteRegister(&MODBUS_SERIAL, addr, reg, val);
 
-  if (!i.valid) {
+  if (!i->valid) {
     server.send(500, "text/plain", "invalid or no response");
-  } else if (i.isError) {
+  } else if (i->isError) {
     server.send(500, "text/plain", "fan coil returned error");
   } else {
     server.send(200, "text/plain", "ok");
@@ -381,9 +381,9 @@ void handleSet() {
     
     if (mode == "FAN_ONLY") {
       fancoil->setMode(Mode::FAN_ONLY);
-    } else if (mode == "COOLING") {
+    } else if (mode == "COOLING" || mode == "COOL") {
       fancoil->setMode(Mode::COOLING);
-    } else if (mode == "HEATING") {
+    } else if (mode == "HEATING" || mode == "HEAT") {
       fancoil->setMode(Mode::HEATING);
     } else if (mode == "AUTO") {
       fancoil->setMode(Mode::AUTO);
@@ -438,7 +438,7 @@ void handleChangeAddress() {
     return;
   }
 
-  if (modbusWriteRegister(&MODBUS_SERIAL, sourceAddress, 200, targetAddress).success()) {
+  if (modbusWriteRegister(&MODBUS_SERIAL, sourceAddress, 200, targetAddress)->success()) {
     debugPrintln("address change write was successfull");
     server.send(200, "text/plain", "done");
   } else {

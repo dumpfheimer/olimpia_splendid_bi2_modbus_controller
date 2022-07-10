@@ -318,19 +318,19 @@ class Fancoil {
       data[1] = data2;
 
       uint8_t successfullWrites = 0;
-      if (modbusWriteRegister(stream, address, 101, (data1 << 8) | data2).success()) {
+      if (modbusWriteRegister(stream, address, 101, (data1 << 8) | data2)->success()) {
         debugPrintln("write 1 was successfull");
         successfullWrites++;
       }
 
       double writeSetpoint = getSetpoint();
 
-      if (modbusWriteRegister(stream, address, 102, (uint16_t) (writeSetpoint * 10)).success()) {
+      if (modbusWriteRegister(stream, address, 102, (uint16_t) (writeSetpoint * 10))->success()) {
         debugPrintln("write 2 was successfull");
         successfullWrites++;
       }
 
-      if (modbusWriteRegister(stream, address, 103, (uint16_t) (getAmbient() * 10)).success()) {
+      if (modbusWriteRegister(stream, address, 103, (uint16_t) (getAmbient() * 10))->success()) {
         debugPrintln("write 3 was successfull");
         successfullWrites++;
       }
@@ -356,12 +356,12 @@ class Fancoil {
       while (isBusy) yield();
       isBusy = true;
 
-      IncomingMessage res = modbusReadRegister(stream, address, 101);
-      if (res.success()) {
+      IncomingMessage* res = modbusReadRegister(stream, address, 101);
+      if (res->success()) {
         lastReadChangedValues = false;
 
-        byte data1 = res.data[1];
-        byte data2 = res.data[2];
+        byte data1 = res->data[1];
+        byte data2 = res->data[2];
         debugPrintln("successfully read 101: ");
         debugPrintln(data1, BIN);
         debugPrintln(data2, BIN);
@@ -421,11 +421,11 @@ class Fancoil {
 
         if (!swingReadOnce && !noSwing) {
           debugPrintln("reading swing configuration");
-          IncomingMessage i = modbusReadRegister(stream, address, 224, 1);
-          if (i.valid) {
-            if (i.address == address && i.functionCode == 3) {
-              byte data1 = i.data[1];
-              byte data2 = i.data[2];
+          IncomingMessage* i = modbusReadRegister(stream, address, 224, 1);
+          if (i->valid) {
+            if (i->address == address && i->functionCode == 3) {
+              byte data1 = i->data[1];
+              byte data2 = i->data[2];
               bool isOn = (data1 & 0b10) > 0;
 
               debugPrint("swing is ");
@@ -440,12 +440,12 @@ class Fancoil {
           }
         }
 
-        IncomingMessage valveRead = modbusReadRegister(stream, address, 9);
-        if (valveRead.success()) {
-          ev1 =     (valveRead.data[1] & 0b01000000) > 0;
-          boiler =  (valveRead.data[1] & 0b00100000) > 0;
-          chiller = (valveRead.data[1] & 0b00010000) > 0;
-          ev2 =     (valveRead.data[1] & 0b00001000) > 0;
+        IncomingMessage* valveRead = modbusReadRegister(stream, address, 9);
+        if (valveRead->success()) {
+          ev1 =     (valveRead->data[1] & 0b01000000) > 0;
+          boiler =  (valveRead->data[1] & 0b00100000) > 0;
+          chiller = (valveRead->data[1] & 0b00010000) > 0;
+          ev2 =     (valveRead->data[1] & 0b00001000) > 0;
         } else {
           debugPrintln("read error");
           isBusy = false;
@@ -453,9 +453,9 @@ class Fancoil {
         }
 
 #ifdef LOAD_WATER_TEMP
-        IncomingMessage waterTempRead = modbusReadRegister(stream, address, 1);
-        if (waterTempRead.success()) {
-          waterTemp = (waterTempRead.data[1] << 8 | waterTempRead.data[2]) / 10;
+        IncomingMessage* waterTempRead = modbusReadRegister(stream, address, 1);
+        if (waterTempRead->success()) {
+          waterTemp = (waterTempRead->data[1] << 8 | waterTempRead->data[2]) / 10;
         } else {
           debugPrintln("read error");
           isBusy = false;
@@ -464,9 +464,9 @@ class Fancoil {
 #endif
 
         if (on) {
-          IncomingMessage faultRead = modbusReadRegister(stream, address, 104);
-          if (faultRead.success()) {
-            waterFault = (faultRead.data[2] & 0b01000000) > 0;
+          IncomingMessage* faultRead = modbusReadRegister(stream, address, 104);
+          if (faultRead->success()) {
+            waterFault = (faultRead->data[2] & 0b01000000) > 0;
           } else {
             debugPrintln("read error");
             isBusy = false;
@@ -499,11 +499,11 @@ class Fancoil {
       if (WiFi.macAddress() == "48:3F:DA:45:35:EE") {
         return true;
       }
-      IncomingMessage i = modbusReadRegister(stream, address, 224, 1);
-      if (i.valid) {
-        if (i.address == address && i.functionCode == 3) {
-          byte data1 = i.data[1];
-          byte data2 = i.data[2];
+      IncomingMessage* i = modbusReadRegister(stream, address, 224, 1);
+      if (i->valid) {
+        if (i->address == address && i->functionCode == 3) {
+          byte data1 = i->data[1];
+          byte data2 = i->data[2];
           bool isOn = (data1 & 0b10) > 0;
 
           if (isOn == swingOn) {
@@ -511,12 +511,12 @@ class Fancoil {
           } else {
             data1 = data1 ^ 0b10; // flip that bit! = toggle
 
-            IncomingMessage i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
-            if (!i2.valid) {
+            IncomingMessage* i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
+            if (!i2->valid) {
               server.send(501, "text/plain", "write invalid");
               return false;
             }
-            if (i2.address == address && i2.functionCode == 6) {
+            if (i2->address == address && i2->functionCode == 6) {
               return true;
             } else {
               server.send(501, "text/plain", "write address or function code mismatch");
@@ -537,23 +537,23 @@ class Fancoil {
       while (isBusy) {}
       isBusy = true;
 
-      IncomingMessage i = modbusReadRegister(stream, address, 104, 1);
-      if (i.valid) {
-        if (i.address == address && i.functionCode == 3) {
-          byte data1 = i.data[1];
-          byte data2 = i.data[2];
+      IncomingMessage* i = modbusReadRegister(stream, address, 104, 1);
+      if (i->valid) {
+        if (i->address == address && i->functionCode == 3) {
+          byte data1 = i->data[1];
+          byte data2 = i->data[2];
           bool isFaulty = data2 & 0x01000000 > 0;
 
           if (isFaulty) {
             data2 = data2 & 0x10111111;
 
-            IncomingMessage i2 = modbusWriteRegister(stream, address, 104, (data1 << 8) | data2);
+            IncomingMessage* i2 = modbusWriteRegister(stream, address, 104, (data1 << 8) | data2);
             isBusy = false;
 
-            if (!i2.valid) {
+            if (!i2->valid) {
               return false;
             }
-            if (i2.address == address && i2.functionCode == 6) {
+            if (i2->address == address && i2->functionCode == 6) {
               return true;
             } else {
               return false;
