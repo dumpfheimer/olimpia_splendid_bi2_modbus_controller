@@ -91,6 +91,19 @@ void sendFancoilState(Fancoil* fancoil) {
       state = "auto";
   }
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/state", state, false);
+  
+  if (!fancoil->isOn()) {
+      state = "off";
+  } else if (fancoil->getMode() == Mode::FAN_ONLY) {
+      state = "fan_only";
+  } else if (fancoil->ev1On() && fancoil->getMode() == Mode::COOLING) {
+      state = "cool";
+  } else if (fancoil->ev1On() && fancoil->getMode() == Mode::HEATING) {
+      state = "heat";
+  } else {
+      state = "idle";
+  }
+  publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/action/state", state, false);
 
   state = fancoil->isOn() ? "ON" : "OFF";
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/state", state, false);
@@ -143,10 +156,14 @@ void sendHomeAssistantConfiguration() {
       "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/swing\", \"name\": \"Fancoil " + clientId + "-" + addr + " swing\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_swing\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
       subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/set");
     
-      //mode: heating cooling
+      //mode
       publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config",
       "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"auto\", \"off\"]}", true);
       subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
+
+      //action
+      publishHelper("homeassistant/select/" + clientId + "-" + addr + "/action/config",
+      "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/action\", \"name\": \"Fancoil " + clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_mode\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"idle\", \"off\"]}", true);
       
       //fan speed: auto, night, low, high
       publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config",
