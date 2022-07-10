@@ -1,0 +1,26 @@
+reg 0: ambient temperature (some devices)
+reg 1: water temperature
+
+reg 15 = fan speed target
+reg 16 = actual fan speed
+
+reg 204 = Td hysteresis off
+reg 205 = Td hysteresis on
+
+reg 206 = Td of AUTO-MAX (at setpoint + reg 204 + reg 206 the full fan speed is reached during COOLING)
+reg 207 = Td of AUTO-MAX (at setpoint + reg 205 + reg 207 the full fan speed is reached during HEATING)
+
+reg 210 = fan speed AUTO Td=0/NIGHT/MIN (COOLING)
+reg 211 = fan speed AUTO Td=0/NIGHT/MIN (HEATING)
+reg 212 = fan speed AUTO Td=max (COOLING)
+reg 213 = fan speed AUTO Td=max(4) (HEATING)
+
+reg 215 = fan speed NIGHT MODE??
+reg 216 = fan speed MAX??
+
+
+reg 219 maximum water temperature while cooling
+reg 218 minimum water temperature while heating
+
+reg 233 heating/cooling info: 3=heating 5=cooling 7=fan_only 0=auto
+
