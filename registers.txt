@@ -1,8 +1,18 @@
+===================================================
+=============== VOLATILE REGISTERS ================
+===================================================
+
 reg 0: ambient temperature (some devices)
 reg 1: water temperature
 
 reg 15 = fan speed target
 reg 16 = actual fan speed
+
+
+
+============== PERSISTENT REGISTERS ===============
+==== DO NOT PERIODICALLY WRITE THESE REGISTERS ====
+===================================================
 
 reg 200 = device address
 
