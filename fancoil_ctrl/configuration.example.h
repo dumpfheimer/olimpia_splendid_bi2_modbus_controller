@@ -8,6 +8,9 @@ const char* wifiHost = "FancoilCtrl";
 // if you want to track the water temperature uncomment:
 // #define LOAD_WATER_TEMP
 
+// if you want to track the water temperature uncomment:
+// #define LOAD_AMBIENT_TEMP
+
 /*
 // FOR USE WITH MQTT CONFIGURE THIS SECTION
 #define MQTT_HOST ""

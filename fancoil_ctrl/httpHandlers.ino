@@ -144,7 +144,11 @@ void handleGet() {
     #ifdef LOAD_WATER_TEMP
     ret += "\"waterTemp\": " + String(fancoil->getWaterTemp()) + ", ";
     #endif
-    
+
+    #ifdef LOAD_AMBIENT_TEMP
+    ret += "\"ambientTemp\": " + String(fancoil->getAmbientTemp()) + ", ";
+    #endif
+
     switch (fancoil->getSyncState()) {
       case SyncState::HAPPY:
         ret += "\"syncState\": \"HAPPY\"";
