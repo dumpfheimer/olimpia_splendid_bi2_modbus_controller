@@ -117,11 +117,15 @@ void sendFancoilState(Fancoil* fancoil) {
   state = String(fancoil->getAmbient());
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/state", state, false);
 
+  #ifdef LOAD_AMBIENT_TEMP
   state = String(fancoil->getAmbientTemp());
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_sensor/state", state, false);
+  #endif
 
+  #ifdef LOAD_WATER_TEMP
   state = String(fancoil->getWaterTemp());
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/water_sensor/state", state, false);
+  #endif
 
   state = fancoil->boilerOn() || fancoil->chillerOn() ? "ON" : "OFF";
   publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming/state", state, false);
@@ -186,13 +190,21 @@ void sendHomeAssistantConfiguration() {
       "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_temperature\", " + "\"cmd_t\": \"~/set\", " + "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
       subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
 
+      #ifdef LOAD_AMBIENT_TEMP
       // ambient temp sensor
       publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config",
       "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_sensor\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient sensor\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_sensor\", " + "\"cmd_t\": \"~/set\", " + "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
+      #else
+      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
+      #endif
 
+      #ifdef LOAD_WATER_TEMP
       // water temp sensor
       publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config",
       "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/water_sensor\", \"name\": \"Fancoil " + clientId + "-" + addr + " water sensor\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_water_sensor\", " + "\"cmd_t\": \"~/set\", " + "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
+      #else
+      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
+      #endif
 
       // is consuming water
       publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config",
