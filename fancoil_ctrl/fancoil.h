@@ -66,6 +66,10 @@ class Fancoil {
     double waterTemp = 0;
 #endif
 
+#ifdef LOAD_AMBIENT_TEMP
+    double ambientTemp = 0;
+#endif
+
   public:
     bool lastReadChangedValues = false;
     bool isInUse = false;
@@ -110,6 +114,10 @@ class Fancoil {
 #ifdef LOAD_WATER_TEMP
       waterTemp = 0;
 #endif
+#ifdef LOAD_AMBIENT_TEMP
+      ambientTemp = 0;
+#endif
+
     }
 
     void setOn(bool set) {
@@ -180,6 +188,11 @@ class Fancoil {
 #ifdef LOAD_WATER_TEMP
     double getWaterTemp() {
       return waterTemp;
+    }
+#endif
+#ifdef LOAD_AMBIENT_TEMP
+    double getAmbientTemp() {
+      return ambientTemp;
     }
 #endif
 
@@ -456,6 +469,17 @@ class Fancoil {
         IncomingMessage* waterTempRead = modbusReadRegister(stream, address, 1);
         if (waterTempRead->success()) {
           waterTemp = (waterTempRead->data[1] << 8 | waterTempRead->data[2]) / 10;
+        } else {
+          debugPrintln("read error");
+          isBusy = false;
+          return false;
+        }
+#endif
+
+#ifdef LOAD_AMBIENT_TEMP
+        IncomingMessage* ambientTempRead = modbusReadRegister(stream, address, 0);
+        if (ambientTempRead->success()) {
+          ambientTemp = (ambientTempRead->data[1] << 8 | ambientTempRead->data[2]) / 10;
         } else {
           debugPrintln("read error");
           isBusy = false;
