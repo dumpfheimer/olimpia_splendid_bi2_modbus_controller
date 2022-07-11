@@ -95,11 +95,11 @@ void sendFancoilState(Fancoil* fancoil) {
   if (!fancoil->isOn()) {
       state = "off";
   } else if (fancoil->getMode() == Mode::FAN_ONLY) {
-      state = "fan_only";
+      state = "fan";
   } else if (fancoil->ev1On() && fancoil->getMode() == Mode::COOLING) {
-      state = "cool";
+      state = "cooling";
   } else if (fancoil->ev1On() && fancoil->getMode() == Mode::HEATING) {
-      state = "heat";
+      state = "heating";
   } else {
       state = "idle";
   }
