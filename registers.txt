@@ -19,7 +19,7 @@ reg 206 = Td of AUTO-MAX (at setpoint + reg 204 + reg 206 the full fan speed is 
 reg 207 = Td of AUTO-MAX (at setpoint + reg 205 + reg 207 the full fan speed is reached during HEATING)
 
 reg 208 = PROBABLY not used
-reg 209 = ??
+reg 209 = ???
 
 reg 210 = fan speed AUTO Td=0/NIGHT/MIN (COOLING)
 reg 211 = fan speed AUTO Td=0/NIGHT/MIN (HEATING)
@@ -55,10 +55,10 @@ reg 233 heating/cooling info: 3=heating 5=cooling 7=fan_only 0=auto
 
 reg 234 = PROBABLY not used
 
-reg 235 = ???
-reg 236 = ???
-reg 237 = ???
-reg 238 = ???
+reg 235 = some temperature offset setting?
+reg 236 = some temperature offset setting?
+reg 237 = some temperature offset setting?
+reg 238 = some temperature offset setting?
 
 reg 239 = PROBABLY not used
 reg 240 = PROBABLY not used
