@@ -141,6 +141,20 @@ void sendFancoilStates() {
   lastSend = millis();
 }
 
+void unconfigureHomeAssistantDevice(String addr) {
+      // purge configuration
+      publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config", "", true);
+      publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config", "", true);
+      publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config", "", true);
+      publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config", "", true);
+      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config", "", true);
+      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config", "", true);
+      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
+      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
+      publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config", "", true);
+      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config", "", true);
+}
+
 void sendHomeAssistantConfiguration() {
   if (!client.connected()) return;
 
@@ -217,17 +231,6 @@ void sendHomeAssistantConfiguration() {
   
       sendFancoilState(fancoil);
     } else {
-      // purge configuration
-      publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config", "", true);
-      publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config", "", true);
-      publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config", "", true);
-      publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config", "", true);
-      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config", "", true);
-      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config", "", true);
-      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
-      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
-      publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config", "", true);
-      publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config", "", true);
     }
   }
 }
