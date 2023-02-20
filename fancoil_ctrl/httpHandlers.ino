@@ -23,8 +23,13 @@ void releaseLock() {
   isLocked = false;
 }
 
+void handleScript() {
+  // let used = [0,1,8,9,15,16,101,102,103,104,105,108,198,199,200,201,202,203,204,205,206,207,209,210,211,212,213,215,216,218,219,221,222,224,231,233,235,236,237,238,245,246]
+  server.send(200, "application/javascript", "let quickDebugRegs = [0,1,8,9,15,16,101,102,103,104,105,108,198,199,200,201,202,203,204,205,206,207,209,210,211,212,213,215,216,218,219,221,222,224,231,233,235,236,237,238,245,246];async function load(url, retry) { try { retry = retry || 5; let x = await fetch(url); let t = await x.text(); if (t != null) return t; else throw 'retry'; } catch(e) {return load(url, retry -1);}}; async function loadNr(url, retry) {let x = await load(url, retry); let r = parseInt(x); if (isNaN(r)) return await loadNr(url, (retry || 5) - 1); else return r}; async function loadReg(addr, reg, retry) {if (retry <= 0) return -1; retry = retry || 5; let x = await fetch(\"/read?addr=\" + addr + \"&reg=\" + reg + \"&len=1\"); if (x.status == 200) {let t = await x.text(); if (t != null && t.indexOf('dec: ') > -1) { let valS = t.substr(t.indexOf(\"dec:\") + 5); let val = parseInt(valS); return val; } else return loadReg(addr, reg, retry - 1);} else {return loadReg(addr, reg, retry - 1);}} async function debug(registers) {if (typeof registers === 'undefined') {registers=[];for (let i = 0; i <= 254; i++){registers.append(i)}};let html=\"<table><thead><tr><td>Addr</td><td>Val (dec)<td></tr></thead><tbody>\"; let s = document.getElementById('debugOut'); let e = document.getElementById('debugAddress'); let a = e.value; let ret = {}; for (let i of registers) { s.innerText = 'Loading register ' + i; ret[i] = await loadReg(a, i); html += \"<tr><td>\" + i + \"</td><td>\" + ret[i] + \"</td></tr>\";}; ret['errorRatio'] = await load('/modbusErrorRatio'); ;html +=\"</tbody></table>Base64: \" + btoa(JSON.stringify(ret)); s.innerHTML = html;}");
+}
+
 void handleRoot() {
-  server.send(200, "text/html", "<html><body><a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\">Github page for help</a></br><form method=\"POST\" action=\"register\"><h3>Register fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"unregister\"><h3>Unregister fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"changeAddress\"><h3>Change fancoil address</h3><br/>Source Address (factory default is 0)<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"sourceAddress\"><br/>Target Address (1-32):<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"targetAddress\"><br/><input type=\"submit\"></form></body></html>");
+  server.send(200, "text/html", "<html><head><script src=\"s.js\"></script></head><body><a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\">Github page for help</a></br><form method=\"POST\" action=\"register\"><h3>Register fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"unregister\"><h3>Unregister fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"changeAddress\"><h3>Change fancoil address</h3><br/>Source Address (factory default is 0)<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"sourceAddress\"><br/>Target Address (1-32):<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"targetAddress\"><br/><input type=\"submit\"></form><h3>Debug</h3>Fan coil address:<br/><input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\"><button onclick=\"debug()\">Debug</button><button onclick=\"debug(quickDebugRegs)\">Quick Debug</button><div id=\"debugOut\"></div></body></html>");
 }
 
 void handleGet() {
@@ -41,7 +46,7 @@ void handleGet() {
     server.send(404, "text/plain", "address not registered");
   } else {
     String ret = "{";
-    ret += "\"address\": \"" + String(fancoil->getAddress(), HEX) + "\",";
+    ret += "\"address\": " + String(fancoil->getAddress(), HEX) + ",";
     ret += "\"setpoint\": " + String(fancoil->getSetpoint()) + ",";
     ret += "\"ambient\": " + String(fancoil->getAmbient()) + ",";
     
@@ -78,12 +83,14 @@ void handleGet() {
         break;
     }
     
-    if (fancoil->getMode() == Mode::COOLING) {
+    if (fancoil->getMode() == Mode::FAN_ONLY) {
+        ret += "\"mode\": \"FAN_ONLY\", ";
+    } else if (fancoil->getMode() == Mode::COOLING) {
         ret += "\"mode\": \"COOLING\", ";
     } else if (fancoil->getMode() == Mode::HEATING) {
         ret += "\"mode\": \"HEATING\", ";
     } else {
-        ret += "\"mode\": \"NONE\", ";
+        ret += "\"mode\": \"AUTO\", ";
     }
 
     if (fancoil->ambientTemperatureIsValid()) {
@@ -96,12 +103,6 @@ void handleGet() {
         ret += "\"readTimeout\": true, ";
     } else {
         ret += "\"readTimeout\": false, ";
-    }
-    
-    if (fancoil->isFanOnly()) {
-        ret += "\"fanonly\": true, ";
-    } else {
-        ret += "\"fanonly\": false, ";
     }
     
     if (fancoil->isSwingOn()) {
@@ -140,6 +141,14 @@ void handleGet() {
         ret += "\"waterFault\": false, ";
     }
     
+    #ifdef LOAD_WATER_TEMP
+    ret += "\"waterTemp\": " + String(fancoil->getWaterTemp()) + ", ";
+    #endif
+
+    #ifdef LOAD_AMBIENT_TEMP
+    ret += "\"ambientTemp\": " + String(fancoil->getAmbientTemp()) + ", ";
+    #endif
+
     switch (fancoil->getSyncState()) {
       case SyncState::HAPPY:
         ret += "\"syncState\": \"HAPPY\"";
@@ -171,14 +180,38 @@ void handleRead() {
   uint16_t reg = server.arg("reg").toDouble();
   uint16_t len = server.arg("len").toDouble();
 
-  IncomingMessage i = modbusReadRegister(&MODBUS_SERIAL, addr, reg, len);
+  IncomingMessage* i = modbusReadRegister(&MODBUS_SERIAL, addr, reg, len);
 
-  if (!i.valid) {
+  if (!i->valid) {
     server.send(500, "text/plain", "invalid or no response");
-  } else if (i.isError) {
+  } else if (i->isError) {
     server.send(500, "text/plain", "fan coil returned error");
   } else {
-    server.send(200, "text/plain", String(i.data[1], HEX) + " " + String(i.data[2], HEX) + " bin: " +  String(i.data[1], BIN) + " " + String(i.data[2], BIN) + " dec: " + String((i.data[1] << 8) | i.data[2], DEC));
+    server.send(200, "text/plain", String(i->data[1], HEX) + " " + String(i->data[2], HEX) + " bin: " +  String(i->data[1], BIN) + " " + String(i->data[2], BIN) + " dec: " + String((i->data[1] << 8) | i->data[2], DEC));
+  }
+}
+
+void handleWrite() {
+  uint8_t addr = getAddress();
+  
+  if (!(addr > 0 && addr <= 32)) {
+    server.send(500, "text/plain", "address must be between 1 and 32");
+    return;
+  }
+
+  Fancoil *fancoil = getFancoilByAddress(addr);
+
+  uint16_t reg = server.arg("reg").toDouble();
+  uint16_t val = server.arg("val").toDouble();
+
+  IncomingMessage* i = modbusWriteRegister(&MODBUS_SERIAL, addr, reg, val);
+
+  if (!i->valid) {
+    server.send(500, "text/plain", "invalid or no response");
+  } else if (i->isError) {
+    server.send(500, "text/plain", "fan coil returned error");
+  } else {
+    server.send(200, "text/plain", "ok");
   }
 }
 
@@ -242,6 +275,9 @@ void handleUnregister() {
   } else {
     server.send(500, "text/plain", "unregister failed");
   }
+  #ifdef MQTT_HOST
+  unconfigureHomeAssistantDevice(String(addr));
+  #endif
 }
 
 void handleList() {
@@ -310,18 +346,14 @@ void handleSet() {
   if (server.hasArg("on")) {
     fancoil->setOn(isTrue(server.arg("on")));
   }
-  
-  if (server.hasArg("fanonly")) {
-    fancoil->setFanOnly(isTrue(server.arg("fanonly")));
-  }
 
   if (server.hasArg("ambient")) {
     double ambient = server.arg("ambient").toDouble();
     if (ambient < 15) {
       ambient = 15;
     }
-    if (ambient > 35) {
-      ambient = 35;
+    if (ambient > 45) {
+      ambient = 45;
     }
     fancoil->setAmbient(ambient);
   }
@@ -355,12 +387,14 @@ void handleSet() {
   if (server.hasArg("mode")) {
     String mode = server.arg("mode");
     
-    if (mode == "COOLING") {
+    if (mode == "FAN_ONLY") {
+      fancoil->setMode(Mode::FAN_ONLY);
+    } else if (mode == "COOLING" || mode == "COOL") {
       fancoil->setMode(Mode::COOLING);
-    } else if (mode == "HEATING") {
+    } else if (mode == "HEATING" || mode == "HEAT") {
       fancoil->setMode(Mode::HEATING);
-    } else if (mode == "NONE") {
-      fancoil->setMode(Mode::NONE);
+    } else if (mode == "AUTO") {
+      fancoil->setMode(Mode::AUTO);
     } else {
       server.send(500, "application/json", "{\"error\": \"invalid mode provided\"}");
       return;
@@ -412,13 +446,28 @@ void handleChangeAddress() {
     return;
   }
 
-  if (modbusWriteRegister(&MODBUS_SERIAL, sourceAddress, 200, targetAddress).success()) {
+  if (modbusWriteRegister(&MODBUS_SERIAL, sourceAddress, 200, targetAddress)->success()) {
     debugPrintln("address change write was successfull");
     server.send(200, "text/plain", "done");
   } else {
     server.send(500, "text/plain", "address changed seems to have failed");
   }
 }
+
+void handleModbusReadCount() {
+  server.send(200, "text/plain", String(modbusReadCount));
+}
+
+void handleModbusReadErrors() {
+  server.send(200, "text/plain", String(modbusReadErrors));
+}
+
+
+void handleModbusErrorRatio() {
+  server.send(200, "text/plain", String(modbusReadErrors * 100 / modbusReadCount) + "% errors");
+}
+
+
 /*
 void handleSwing() {
   uint8_t addr = getAddress();
@@ -438,12 +487,19 @@ void handleSwing() {
 
 void setupHttp() {
   server.on("/", handleRoot);
+  server.on("/s.js", handleScript);
   server.on("/get", handleGet);
   server.on("/read", handleRead);
+  server.on("/write", HTTP_POST, handleWrite);
   server.on("/register", HTTP_POST, handleRegister);
   server.on("/unregister", HTTP_POST, handleUnregister);
   server.on("/list", handleList);
   server.on("/factoryReset", HTTP_POST, handleFactoryReset);
+  server.on("/resetWaterTemperatureFault", handleResetWaterTemperatureFault);
+  
+  server.on("/modbusReadCount", handleModbusReadCount);
+  server.on("/modbusReadErrors", handleModbusReadErrors);
+  server.on("/modbusErrorRatio", handleModbusErrorRatio);
 
   //server.on("/setAmbient", HTTP_POST, handleSetAmbient);
   //server.on("/setSetpoint", HTTP_POST, handleSetSetpoint);

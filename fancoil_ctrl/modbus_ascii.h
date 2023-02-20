@@ -3,6 +3,8 @@
 unsigned long lastMessageAt = 0;
 unsigned long messageQuietTime = 25; // milliseconds between messages
 unsigned long readTimeout = 500;
+unsigned long modbusReadErrors = 0;
+unsigned long modbusReadCount = 0;
 
 class IncomingMessage {
   public:
@@ -54,6 +56,11 @@ class IncomingMessage {
 };
 
 char readBuffer[INCOMING_MESSAGE_BUFFER_SIZE * 2];
+IncomingMessage* incomingMessage;
+
+void setupModbus() {
+  incomingMessage = (IncomingMessage*) malloc(sizeof(IncomingMessage));
+}
 
 void preTransmission()
 {
@@ -91,9 +98,9 @@ void printByte(byte b, Stream *stream) {
   stream->print(b & 0xF, HEX);
 }
 
-IncomingMessage modbusRead(Stream *stream) {
+IncomingMessage* modbusRead(Stream *stream) {
   preReceive();
-  IncomingMessage ret;
+  modbusReadCount++;
   char c = 0;
   long start = millis();
   while ((millis() - start) < readTimeout) {
@@ -119,53 +126,55 @@ IncomingMessage modbusRead(Stream *stream) {
           if (readBufferPos < 2) {
             debugPrintln("message too short");
             postReceive();
-            return ret;
+            modbusReadErrors++;
+            return incomingMessage;
           }
           int dataPos = 0;
           for (uint8_t convertPos = 0; convertPos < readBufferPos - 1 /* before \r */; convertPos += 2) {
             char *limit = &(readBuffer[convertPos + 2]);
             uint8_t byteValue = convertHexStringToByte(readBuffer[convertPos], readBuffer[convertPos + 1]);
             if (convertPos == 0) {
-              ret.address = byteValue;
+              incomingMessage->address = byteValue;
             } else if (convertPos == 2) {
-              ret.functionCode = byteValue;
+              incomingMessage->functionCode = byteValue;
             } else {
-              ret.data[dataPos] = byteValue;
+              incomingMessage->data[dataPos] = byteValue;
               dataPos++;
             }
           }
-          ret.crc = ret.data[dataPos - 1];
-          ret.data[dataPos - 1] = 0;
-          ret.dataLength = dataPos - 1;
+          incomingMessage->crc = incomingMessage->data[dataPos - 1];
+          incomingMessage->data[dataPos - 1] = 0;
+          incomingMessage->dataLength = dataPos - 1;
   
   
           debugPrint("received ");
-          debugPrint(ret.address, HEX);
+          debugPrint(incomingMessage->address, HEX);
           debugPrint(" ");
-          debugPrint(ret.functionCode, HEX);
+          debugPrint(incomingMessage->functionCode, HEX);
           debugPrint(" ");
-          for (int i = 0; i < ret.dataLength; i++) {
-            debugPrint(ret.data[i], HEX);
+          for (int i = 0; i < incomingMessage->dataLength; i++) {
+            debugPrint(incomingMessage->data[i], HEX);
             debugPrint(",");
           }
           debugPrint("= ");
-          debugPrintln(ret.crc, HEX);
+          debugPrintln(incomingMessage->crc, HEX);
   
-          if (!ret.crcIsValid()) {
+          if (!incomingMessage->crcIsValid()) {
             debugPrintln("CRC is invalid");
-            ret.valid = false;
+            incomingMessage->valid = false;
             postReceive();
-            return ret;
+            modbusReadErrors++;
+            return incomingMessage;
           }
-          ret.valid = true;
-          if ((ret.functionCode & 0b10000000) > 0) {
+          incomingMessage->valid = true;
+          if ((incomingMessage->functionCode & 0b10000000) > 0) {
             debugPrintln("function code has error bit set");
-            ret.isError = true;
+            incomingMessage->isError = true;
           } else {
-            ret.isError = false;
+            incomingMessage->isError = false;
           }
           postReceive();
-          return ret;
+          return incomingMessage;
         }
         readBufferPos++;
         if (readBufferPos >= INCOMING_MESSAGE_BUFFER_SIZE) {
@@ -183,15 +192,17 @@ IncomingMessage modbusRead(Stream *stream) {
     //debugPrintln(readBuffer);
     lastMessageAt = millis();
     postReceive();
-    return ret;
+    modbusReadErrors++;
+    return incomingMessage;
   } else {
     debugPrintln("No begin sign");
-    ret.valid = false;
+    incomingMessage->valid = false;
     postReceive();
-    return ret;
+    modbusReadErrors++;
+    return incomingMessage;
   }
 }
-IncomingMessage modbusWrite(Stream *stream, byte address, byte functionCode, byte binaryMsg[], uint8_t length) {
+IncomingMessage* modbusWrite(Stream *stream, byte address, byte functionCode, byte binaryMsg[], uint8_t length) {
   uint16_t checksum = 0;
   checksum += address;
   checksum += functionCode;
@@ -240,14 +251,14 @@ IncomingMessage modbusWrite(Stream *stream, byte address, byte functionCode, byt
   lastMessageAt = millis(); // update inbetween
 
   debugPrintln("Waiting for response");
-  IncomingMessage result = modbusRead(stream);
-  if (!result.valid) {
+  IncomingMessage* result = modbusRead(stream);
+  if (!result->valid) {
     // no valid message received
     debugPrintln("no valid message received");
-  } else if (result.isError) {
+  } else if (result->isError) {
     // device responded with error
     debugPrintln("error received");
-  } else if (result.address == address && result.functionCode == functionCode) {
+  } else if (result->address == address && result->functionCode == functionCode) {
     debugPrintln("write success");
   } else {
     debugPrintln("error received");
@@ -255,7 +266,7 @@ IncomingMessage modbusWrite(Stream *stream, byte address, byte functionCode, byt
   return result;
 }
 
-IncomingMessage modbusReadRegisterI(Stream *stream, byte address, uint16_t registe, uint8_t count) {
+IncomingMessage* modbusReadRegisterI(Stream *stream, byte address, uint16_t registe, uint8_t count) {
   byte msg[4];
 
   uint16_t actualRegister = registe;
@@ -267,9 +278,9 @@ IncomingMessage modbusReadRegisterI(Stream *stream, byte address, uint16_t regis
   return modbusWrite(stream, address, 0x03, msg, 4);
 }
 
-IncomingMessage modbusReadRegister(Stream *stream, byte address, uint16_t registe, uint8_t count, uint8_t retry) {
-  IncomingMessage i = modbusReadRegisterI(stream, address, registe, count);
-  if (i.valid) {
+IncomingMessage* modbusReadRegister(Stream *stream, byte address, uint16_t registe, uint8_t count, uint8_t retry) {
+  IncomingMessage* i = modbusReadRegisterI(stream, address, registe, count);
+  if (i->valid) {
     return i;
   } else if (retry > 0) {
     return modbusReadRegister(stream, address, registe, count, retry - 1);
@@ -278,16 +289,16 @@ IncomingMessage modbusReadRegister(Stream *stream, byte address, uint16_t regist
   }
 }
 
-IncomingMessage modbusReadRegister(Stream *stream, byte address, uint16_t registe, uint8_t count) {
+IncomingMessage* modbusReadRegister(Stream *stream, byte address, uint16_t registe, uint8_t count) {
   return modbusReadRegister(stream, address, registe, count, 1);
 }
 
-IncomingMessage modbusReadRegister(Stream *stream, byte address, uint16_t registe) {
+IncomingMessage* modbusReadRegister(Stream *stream, byte address, uint16_t registe) {
   return modbusReadRegister(stream, address, registe, 1, 1);
 }
 
 
-IncomingMessage modbusWriteRegisterI(Stream *stream, byte address, uint16_t registe, uint16_t data) {
+IncomingMessage* modbusWriteRegisterI(Stream *stream, byte address, uint16_t registe, uint16_t data) {
   byte msg[4];
   
   uint16_t actualRegister = registe;
@@ -299,9 +310,9 @@ IncomingMessage modbusWriteRegisterI(Stream *stream, byte address, uint16_t regi
   return modbusWrite(stream, address, 0x06, msg, 4);
 }
 
-IncomingMessage modbusWriteRegister(Stream *stream, byte address, uint16_t registe, uint16_t data, uint8_t retry) {
-  IncomingMessage i = modbusWriteRegisterI(stream, address, registe, data);
-  if (i.valid) {
+IncomingMessage* modbusWriteRegister(Stream *stream, byte address, uint16_t registe, uint16_t data, uint8_t retry) {
+  IncomingMessage* i = modbusWriteRegisterI(stream, address, registe, data);
+  if (i->valid) {
     return i;
   } else if (retry > 0) {
     return modbusWriteRegister(stream, address, registe, data, retry - 1);
@@ -310,6 +321,6 @@ IncomingMessage modbusWriteRegister(Stream *stream, byte address, uint16_t regis
   }
 }
 
-IncomingMessage modbusWriteRegister(Stream *stream, byte address, uint16_t registe, uint16_t data) {
+IncomingMessage* modbusWriteRegister(Stream *stream, byte address, uint16_t registe, uint16_t data) {
   return modbusWriteRegister(stream, address, registe, data, 1);
 }

@@ -7,7 +7,8 @@ enum FanSpeed {
 enum Mode {
   COOLING = 0x10,
   HEATING = 0x01,
-  NONE = 0x00
+  AUTO = 0x00,
+  FAN_ONLY = 0x11
 };
 enum SyncState {
   HAPPY = 0x11,
@@ -45,16 +46,15 @@ class Fancoil {
 
     // the last receive time
     unsigned long lastAmbientSet = 0;
-    #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
-    unsigned long ambientSetTimeout = 600000; // 10 min
-    #endif
+#ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
+    unsigned long ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
+#endif
 
     // the last successful read
     unsigned long lastRead = 0;
     unsigned long readPeriod = 40000;
 
     byte communicationTimer = 0;
-    bool fanOnly = false;
     bool swingOn = true;
     bool swingReadOnce = false;
     bool ev1 = false;
@@ -62,15 +62,22 @@ class Fancoil {
     bool boiler = false;
     bool chiller = false;
     bool waterFault = false;
+#ifdef LOAD_WATER_TEMP
+    double waterTemp = 0;
+#endif
+
+#ifdef LOAD_AMBIENT_TEMP
+    double ambientTemp = 0;
+#endif
 
   public:
     bool lastReadChangedValues = false;
     bool isInUse = false;
-    
+
     Fancoil() {
       init(0);
     }
-    
+
     Fancoil(uint8_t add) {
       init(add);
     }
@@ -94,9 +101,9 @@ class Fancoil {
 
       sendPeriod = 60000;
       readPeriod = 30000;
-      #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
-      ambientSetTimeout = 600000; // 10 min
-      #endif
+#ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
+      ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
+#endif
       communicationTimer = 0;
 
       ev1 = false;
@@ -104,6 +111,13 @@ class Fancoil {
       boiler = false;
       chiller = false;
       waterFault = false;
+#ifdef LOAD_WATER_TEMP
+      waterTemp = 0;
+#endif
+#ifdef LOAD_AMBIENT_TEMP
+      ambientTemp = 0;
+#endif
+
     }
 
     void setOn(bool set) {
@@ -114,27 +128,19 @@ class Fancoil {
       return on;
     }
 
-    void setFanOnly(bool fanOnly_) {
-      fanOnly = fanOnly_;
-    }
-
-    bool isFanOnly() {
-      return fanOnly;
-    }
-
     void setSwing(bool swingOnSet) {
       swingOn = swingOnSet;
     }
-    
+
     bool isSwingOn() {
       return swingOn;
     }
-    
+
     void setSpeed(FanSpeed newSpeed) {
       if (speed != newSpeed) syncState = SyncState::WRITING;
       speed = newSpeed;
     }
-    
+
     FanSpeed getSpeed() {
       return speed;
     }
@@ -143,14 +149,14 @@ class Fancoil {
       if (mode != m) syncState = SyncState::WRITING;
       mode = m;
     }
-    
+
     Mode getMode() {
       return mode;
     }
 
     void setSetpoint(double newSetpoint) {
       if (newSetpoint < 15) newSetpoint = 15;
-      if (newSetpoint > 30) newSetpoint = 30;
+      if (newSetpoint > 40) newSetpoint = 40;
 
       uint16_t intVal = newSetpoint * 10;
       newSetpoint = (double) intVal / (double) 10;
@@ -158,14 +164,14 @@ class Fancoil {
       if (setpoint != newSetpoint) syncState = SyncState::WRITING;
       setpoint = newSetpoint;
     }
-    
+
     double getSetpoint() {
       return setpoint;
     }
 
     void setAmbient(double newAmbient) {
       if (newAmbient < 1) newAmbient = 1;
-      if (newAmbient > 40) newAmbient = 40;
+      if (newAmbient > 45) newAmbient = 45;
 
       uint16_t intVal = newAmbient * 10;
       newAmbient = (double) intVal / (double) 10;
@@ -174,10 +180,21 @@ class Fancoil {
       ambientTemperature = newAmbient;
       lastAmbientSet = millis();
     }
-    
+
     double getAmbient() {
       return ambientTemperature;
     }
+
+#ifdef LOAD_WATER_TEMP
+    double getWaterTemp() {
+      return waterTemp;
+    }
+#endif
+#ifdef LOAD_AMBIENT_TEMP
+    double getAmbientTemp() {
+      return ambientTemp;
+    }
+#endif
 
     bool ev1On() {
       return ev1;
@@ -204,15 +221,15 @@ class Fancoil {
     }
 
     bool ambientTemperatureIsValid() {
-      #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
-      if ((millis() - lastAmbientSet) < ambientSetTimeout) {
+#ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
+      if ((millis() - lastAmbientSet) < ambientSetTimeout * 1000) {
         return true;
       } else {
         return false;
       }
-      #else
+#else
       return true;
-      #endif
+#endif
     }
 
     bool readTimeout() {
@@ -283,6 +300,8 @@ class Fancoil {
         data1 = data1 | (1 << 6);
       } else if (mode == Mode::HEATING) {
         data1 = data1 | (1 << 5);
+      } else if (mode == Mode::FAN_ONLY) {
+        data1 = data1 | (1 << 5) | (1 << 6);
       } else {
         // leave the 0s
       }
@@ -312,22 +331,19 @@ class Fancoil {
       data[1] = data2;
 
       uint8_t successfullWrites = 0;
-      if (modbusWriteRegister(stream, address, 101, (data1 << 8) | data2).success()) {
+      if (modbusWriteRegister(stream, address, 101, (data1 << 8) | data2)->success()) {
         debugPrintln("write 1 was successfull");
         successfullWrites++;
       }
-      
+
       double writeSetpoint = getSetpoint();
-      if (fanOnly) {
-        writeSetpoint = 30;
-      }
-      
-      if (modbusWriteRegister(stream, address, 102, (uint16_t) (writeSetpoint * 10)).success()) {
+
+      if (modbusWriteRegister(stream, address, 102, (uint16_t) (writeSetpoint * 10))->success()) {
         debugPrintln("write 2 was successfull");
         successfullWrites++;
       }
 
-      if (modbusWriteRegister(stream, address, 103, (uint16_t) (getAmbient() * 10)).success()) {
+      if (modbusWriteRegister(stream, address, 103, (uint16_t) (getAmbient() * 10))->success()) {
         debugPrintln("write 3 was successfull");
         successfullWrites++;
       }
@@ -353,31 +369,34 @@ class Fancoil {
       while (isBusy) yield();
       isBusy = true;
 
-      IncomingMessage res = modbusReadRegister(stream, address, 101);
-      if (res.success()) {
+      IncomingMessage* res = modbusReadRegister(stream, address, 101);
+      if (res->success()) {
         lastReadChangedValues = false;
 
-        byte data1 = res.data[1];
-        byte data2 = res.data[2];
+        byte data1 = res->data[1];
+        byte data2 = res->data[2];
         debugPrintln("successfully read 101: ");
         debugPrintln(data1, BIN);
         debugPrintln(data2, BIN);
 
         communicationTimer = data1 & 0x0F;
 
-        if (data1 & 0b01000000) {
+        if ((data1 & 0b01000000) && (data1 & 0b00100000)) {
+          if (mode != Mode::FAN_ONLY) lastReadChangedValues = true;
+          mode = Mode::FAN_ONLY;
+        } else if (data1 & 0b01000000) {
           if (mode != Mode::COOLING) lastReadChangedValues = true;
           mode = Mode::COOLING;
         } else if (data1 & 0b00100000) {
           if (mode != Mode::HEATING) lastReadChangedValues = true;
           mode = Mode::HEATING;
         } else {
-          if (mode != Mode::NONE) lastReadChangedValues = true;
-          mode = Mode::NONE;
+          if (mode != Mode::AUTO) lastReadChangedValues = true;
+          mode = Mode::AUTO;
         }
 
         if (data1 & 0b00010000) {
-          if (absenceConditionForced != AbsenceCondition::FORCED) lastReadChangedValues = true;
+        if (absenceConditionForced != AbsenceCondition::FORCED) lastReadChangedValues = true;
           absenceConditionForced = AbsenceCondition::FORCED;
         } else {
           if (absenceConditionForced != AbsenceCondition::NOT_FORCED) lastReadChangedValues = true;
@@ -415,11 +434,11 @@ class Fancoil {
 
         if (!swingReadOnce && !noSwing) {
           debugPrintln("reading swing configuration");
-          IncomingMessage i = modbusReadRegister(stream, address, 224, 1);
-          if (i.valid) {
-            if (i.address == address && i.functionCode == 3) {
-              byte data1 = i.data[1];
-              byte data2 = i.data[2];
+          IncomingMessage* i = modbusReadRegister(stream, address, 224, 1);
+          if (i->valid) {
+            if (i->address == address && i->functionCode == 3) {
+              byte data1 = i->data[1];
+              byte data2 = i->data[2];
               bool isOn = (data1 & 0b10) > 0;
 
               debugPrint("swing is ");
@@ -433,23 +452,45 @@ class Fancoil {
             }
           }
         }
-        
-        IncomingMessage valveRead = modbusReadRegister(stream, address, 9);
-        if (valveRead.success()) {
-          ev1 =     (valveRead.data[1] & 0b01000000) > 0;
-          boiler =  (valveRead.data[1] & 0b00100000) > 0;
-          chiller = (valveRead.data[1] & 0b00010000) > 0;
-          ev2 =     (valveRead.data[1] & 0b00001000) > 0;
+
+        IncomingMessage* valveRead = modbusReadRegister(stream, address, 9);
+        if (valveRead->success()) {
+          ev1 =     (valveRead->data[1] & 0b01000000) > 0;
+          boiler =  (valveRead->data[1] & 0b00100000) > 0;
+          chiller = (valveRead->data[1] & 0b00010000) > 0;
+          ev2 =     (valveRead->data[1] & 0b00001000) > 0;
         } else {
           debugPrintln("read error");
           isBusy = false;
           return false;
         }
 
+#ifdef LOAD_WATER_TEMP
+        IncomingMessage* waterTempRead = modbusReadRegister(stream, address, 1);
+        if (waterTempRead->success()) {
+          waterTemp = (waterTempRead->data[1] << 8 | waterTempRead->data[2]) / 10;
+        } else {
+          debugPrintln("read error");
+          isBusy = false;
+          return false;
+        }
+#endif
+
+#ifdef LOAD_AMBIENT_TEMP
+        IncomingMessage* ambientTempRead = modbusReadRegister(stream, address, 0);
+        if (ambientTempRead->success()) {
+          ambientTemp = (ambientTempRead->data[1] << 8 | ambientTempRead->data[2]) / 10;
+        } else {
+          debugPrintln("read error");
+          isBusy = false;
+          return false;
+        }
+#endif
+
         if (on) {
-          IncomingMessage faultRead = modbusReadRegister(stream, address, 105);
-          if (faultRead.success()) {
-            waterFault = (faultRead.data[2] & 0b00010000) > 0;
+          IncomingMessage* faultRead = modbusReadRegister(stream, address, 104);
+          if (faultRead->success()) {
+            waterFault = (faultRead->data[2] & 0b01000000) > 0;
           } else {
             debugPrintln("read error");
             isBusy = false;
@@ -462,10 +503,10 @@ class Fancoil {
         debugPrintln("read success");
         lastRead = millis();
 
-        #ifdef MQTT_HOST
+#ifdef MQTT_HOST
         if (lastReadChangedValues) notifyStateChanged();
-        #endif
-        
+#endif
+
         isBusy = false;
         return true;
       } else {
@@ -474,7 +515,7 @@ class Fancoil {
         return false;
       }
     }
-    
+
     bool writeSwingIfNeeded(Stream *stream) {
       if (noSwing) {
         return true;
@@ -482,24 +523,24 @@ class Fancoil {
       if (WiFi.macAddress() == "48:3F:DA:45:35:EE") {
         return true;
       }
-      IncomingMessage i = modbusReadRegister(stream, address, 224, 1);
-      if (i.valid) {
-        if (i.address == address && i.functionCode == 3) {
-          byte data1 = i.data[1];
-          byte data2 = i.data[2];
+      IncomingMessage* i = modbusReadRegister(stream, address, 224, 1);
+      if (i->valid) {
+        if (i->address == address && i->functionCode == 3) {
+          byte data1 = i->data[1];
+          byte data2 = i->data[2];
           bool isOn = (data1 & 0b10) > 0;
 
           if (isOn == swingOn) {
             return true;
           } else {
             data1 = data1 ^ 0b10; // flip that bit! = toggle
-            
-            IncomingMessage i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
-            if (!i2.valid) {
+
+            IncomingMessage* i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
+            if (!i2->valid) {
               server.send(501, "text/plain", "write invalid");
               return false;
             }
-            if (i2.address == address && i2.functionCode == 6) {
+            if (i2->address == address && i2->functionCode == 6) {
               return true;
             } else {
               server.send(501, "text/plain", "write address or function code mismatch");
@@ -520,23 +561,23 @@ class Fancoil {
       while (isBusy) {}
       isBusy = true;
 
-      IncomingMessage i = modbusReadRegister(stream, address, 105, 1);
-      if (i.valid) {
-        if (i.address == address && i.functionCode == 3) {
-          byte data1 = i.data[1];
-          byte data2 = i.data[2];
-          bool isFaulty = data2 & 0x00010000 > 0;
+      IncomingMessage* i = modbusReadRegister(stream, address, 104, 1);
+      if (i->valid) {
+        if (i->address == address && i->functionCode == 3) {
+          byte data1 = i->data[1];
+          byte data2 = i->data[2];
+          bool isFaulty = data2 & 0x01000000 > 0;
 
           if (isFaulty) {
-            data2 = data2 & 0x11101111;
-  
-            IncomingMessage i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
+            data2 = data2 & 0x10111111;
+
+            IncomingMessage* i2 = modbusWriteRegister(stream, address, 104, (data1 << 8) | data2);
             isBusy = false;
-            
-            if (!i2.valid) {
+
+            if (!i2->valid) {
               return false;
             }
-            if (i2.address == address && i2.functionCode == 6) {
+            if (i2->address == address && i2->functionCode == 6) {
               return true;
             } else {
               return false;
@@ -547,11 +588,11 @@ class Fancoil {
           }
         }
       }
-  
+
       isBusy = false;
       return false;
     }
-    
+
     void loop(Stream *stream) {
       debugPrintln("loop");
       // 1. check if values have been received over network recently

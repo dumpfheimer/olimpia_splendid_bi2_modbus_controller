@@ -186,7 +186,7 @@ Fancoil* getFancoilByAddress(uint8_t addr) {
   LinkedFancoilListElement *current = &firstListElement;
 
   do {
-    if (current->fancoil != NULL && current->fancoil->getAddress() == addr) {
+    if (current != NULL && current->fancoil != NULL && current->fancoil->getAddress() == addr) {
       return current->fancoil;
     }
     current = current->next;

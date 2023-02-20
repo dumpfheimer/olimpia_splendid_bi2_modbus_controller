@@ -40,10 +40,9 @@ void setup()
   digitalWrite(READ_ENABLE_PIN, 1);
   digitalWrite(DRIVER_ENABLE_PIN, 0);
 
+  setupModbus();
   setupLogging();
 
-  IncomingMessage m;
-  
   modbusSerial.begin(9600, SWSERIAL_7E1);
   modbusSerial.setTimeout(500);
   
@@ -81,7 +80,6 @@ void setup()
 // Request:   3A 30 31 30 33 30 32 35 38 30 30 30 32 41 30 0D 0A
 // Response:  3A 30 31 30 33 30 34 30 33 45 38 31 33 38 38 37 32 0D 0A
 void loop() {
-  debugPrint("LOOP");
   server.handleClient();
   loopOTA();
 

@@ -1,0 +1,91 @@
+===================================================
+=============== VOLATILE REGISTERS ================
+===================================================
+
+reg 0: ambient temperature (some devices)
+reg 1: water temperature
+
+reg 15 = fan speed target
+reg 16 = actual fan speed
+
+
+
+============== PERSISTENT REGISTERS ===============
+==== DO NOT PERIODICALLY WRITE THESE REGISTERS ====
+===================================================
+
+reg 200 = device address
+
+reg 201 = ???
+
+reg 202 = minimum setpoint
+reg 203 = maximum setpoint
+
+reg 204 = Td hysteresis off
+reg 205 = Td hysteresis on
+
+
+reg 206 = Td of AUTO-MAX (at setpoint + reg 204 + reg 206 the full fan speed is reached during COOLING)
+reg 207 = Td of AUTO-MAX (at setpoint + reg 205 + reg 207 the full fan speed is reached during HEATING)
+
+reg 208 = PROBABLY not used
+reg 209 = ???
+
+reg 210 = fan speed AUTO Td=0/NIGHT/MIN (COOLING)
+reg 211 = fan speed AUTO Td=0/NIGHT/MIN (HEATING)
+reg 212 = fan speed AUTO Td=max (COOLING)
+reg 213 = fan speed AUTO Td=max(4) (HEATING)
+
+reg 214 = PROBABLY not used
+
+reg 215 = fan speed NIGHT MODE??
+reg 216 = fan speed MAX??
+
+reg 217 = PROBABLY not used
+
+reg 218 minimum water temperature while heating
+reg 219 maximum water temperature while cooling
+
+reg 220 = PROBABLY not used
+
+reg 221 = ???
+reg 222 = ???
+reg 223 = PROBABLY not used
+reg 224 = ???
+reg 225 = PROBABLY not used
+reg 226 = PROBABLY not used
+reg 227 = PROBABLY not used
+reg 228 = PROBABLY not used
+reg 229 = PROBABLY not used
+reg 230 = PROBABLY not used
+
+reg 231 current setpoint?
+reg 232 = PROBABLY not used
+reg 233 heating/cooling info: 3=heating 5=cooling 7=fan_only 0=auto
+
+reg 234 = PROBABLY not used
+
+reg 235 = some temperature offset setting?
+reg 236 = some temperature offset setting?
+reg 237 = some temperature offset setting?
+reg 238 = some temperature offset setting?
+
+reg 239 = PROBABLY not used
+reg 240 = PROBABLY not used
+reg 241 = PROBABLY not used
+reg 242 = PROBABLY not used
+reg 243 = PROBABLY not used
+reg 244 = PROBABLY not used
+
+reg 245 = ???
+reg 246 = ???
+
+reg 247 = PROBABLY not used
+reg 248 = PROBABLY not used
+reg 249 = PROBABLY not used
+reg 250 = PROBABLY not used
+reg 251 = PROBABLY not used
+reg 252 = PROBABLY not used
+reg 253 = PROBABLY not used
+reg 254 = PROBABLY not used
+reg 255 = PROBABLY not used
