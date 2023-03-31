@@ -12,6 +12,7 @@
 #define FANCOIL_EEPROM_START_ADDRESS 0
 #define FANCOIL_EEPROM_LENGTH 32
 
+class Fancoil;
 
 struct LinkedFancoilListElement {
     Fancoil *fancoil;

@@ -14,6 +14,7 @@
 #include <WiFiClient.h>
 #include "fancoil.h"
 #include "httpHandlers.h"
+#include "fancoil_manager.h"
 
 void setupMqtt();
 void loopMqtt();

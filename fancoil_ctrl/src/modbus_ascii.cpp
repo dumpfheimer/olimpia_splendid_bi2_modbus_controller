@@ -8,6 +8,8 @@ unsigned long readTimeout = 500;
 unsigned long modbusReadErrors = 0;
 unsigned long modbusReadCount = 0;
 
+IncomingMessage* incomingMessage;
+
 bool IncomingMessage::crcIsValid() {
     uint16_t checksum = 0;
     checksum += address;

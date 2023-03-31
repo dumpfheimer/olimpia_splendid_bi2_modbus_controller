@@ -36,7 +36,7 @@ public:
 };
 
 extern char readBuffer[];
-IncomingMessage* incomingMessage;
+extern IncomingMessage* incomingMessage;
 
 void setupModbus();
 void preTransmission();

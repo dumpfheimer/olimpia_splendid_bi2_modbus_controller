@@ -15,6 +15,8 @@
 #include "ota.h"
 #include "httpHandlers.h"
 #include "mqtt.h"
+#include "fancoil.h"
+#include "wifi.h"
 
 
 #define DRIVER_ENABLE_PIN D3

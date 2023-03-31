@@ -1,5 +1,6 @@
 #include "fancoil.h"
 
+bool noSwing = false;
 
 Fancoil::Fancoil() {
     init(0);

@@ -1,8 +1,11 @@
 #include "main.h"
 
 void debugPrint(String s);
+
 void debugPrint(unsigned long l, int i);
+
 void debugPrintln(String s);
+
 void debugPrintln(unsigned long l, int i);
 
 ESP8266WebServer server(80);
@@ -13,55 +16,48 @@ ESP8266WebServer server(80);
 
 
 #ifdef MQTT_HOST
+
 void notifyStateChanged();
+
 #endif
-#include "fancoil.h"
 
 
 // instantiate ModbusMaster object
 SoftwareSerial modbusSerial(D4, D1, true);
 
 
-void setup()
-{
-  pinMode(READ_ENABLE_PIN, OUTPUT);
-  pinMode(DRIVER_ENABLE_PIN, OUTPUT);
+void setup() {
+    pinMode(READ_ENABLE_PIN, OUTPUT);
+    pinMode(DRIVER_ENABLE_PIN, OUTPUT);
 
-  digitalWrite(READ_ENABLE_PIN, 1);
-  digitalWrite(DRIVER_ENABLE_PIN, 0);
+    digitalWrite(READ_ENABLE_PIN, 1);
+    digitalWrite(DRIVER_ENABLE_PIN, 0);
 
-  setupModbus();
-  setupLogging();
+    setupModbus();
+    setupLogging();
 
-  modbusSerial.begin(9600, SWSERIAL_7E1);
-  modbusSerial.setTimeout(500);
-  
+    modbusSerial.begin(9600, SWSERIAL_7E1);
+    modbusSerial.setTimeout(500);
 
-  debugPrintln("Connecting to WiFi..");
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleepMode(WIFI_NONE_SLEEP);
-  WiFi.begin(kSsid, kPassword);
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(true);
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(100);
-  }
-  if (!MDNS.begin(wifiHost)) {
-    debugPrintln("Error setting up MDNS responder!");
-  }
-  debugPrintln(WiFi.localIP().toString());
 
-  setupOTA();
-  setupHttp();
+    debugPrintln("Connecting to WiFi..");
+    setupWifi(kSsid, kPassword);
 
-  MODBUS_SERIAL.setTimeout(5000);
+    if (!MDNS.begin(wifiHost)) {
+        debugPrintln("Error setting up MDNS responder!");
+    }
+    debugPrintln(WiFi.localIP().toString());
 
-  setupFancoilManager();
-  
-  #ifdef MQTT_HOST
-  setupMqtt();
-  #endif
+    setupOTA();
+    setupHttp();
+
+    MODBUS_SERIAL.setTimeout(5000);
+
+    setupFancoilManager();
+
+#ifdef MQTT_HOST
+    setupMqtt();
+#endif
 }
 
 // reading 601-602
@@ -70,12 +66,13 @@ void setup()
 // Request:   3A 30 31 30 33 30 32 35 38 30 30 30 32 41 30 0D 0A
 // Response:  3A 30 31 30 33 30 34 30 33 45 38 31 33 38 38 37 32 0D 0A
 void loop() {
-  server.handleClient();
-  loopOTA();
+    loopWifi();
+    server.handleClient();
+    loopOTA();
 
-  loopFancoils(&MODBUS_SERIAL);
-  
-  #ifdef MQTT_HOST
-  loopMqtt();
-  #endif
+    loopFancoils(&MODBUS_SERIAL);
+
+#ifdef MQTT_HOST
+    loopMqtt();
+#endif
 }

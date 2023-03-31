@@ -11,7 +11,6 @@
 
 #include "logging.h"
 #include "modbus_ascii.h"
-#include "main.h"
 
 enum FanSpeed {
     AUTOMATIC = 0x00,
@@ -40,7 +39,7 @@ enum PushResult {
     WRITE_FAILED = 0x01010001
 };
 
-bool noSwing = false;
+extern bool noSwing;
 
 class Fancoil {
 private:
