@@ -1,5 +1,6 @@
+#include "mqtt.h"
+
 #ifdef MQTT_HOST
-#include <PubSubClient.h>
 
 #define MQTT_USER_BUFFER_SIZE 128
 #define MQTT_PASS_BUFFER_SIZE 128

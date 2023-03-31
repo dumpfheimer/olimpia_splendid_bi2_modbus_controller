@@ -1,5 +1,4 @@
-#define USE_LOGGING
-
+#include "logging.h"
 
 void setupLogging() {
   #ifdef USE_LOGGING

@@ -1,1 +1,6 @@
 configuration.h
+.pio
+.idea
+cmake-build-debug
+CMakeLists.txt
+CMakeListsPrivate.txt

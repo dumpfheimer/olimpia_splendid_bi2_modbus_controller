@@ -1,20 +1,10 @@
-#include <SoftwareSerial.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
-
-#define MODBUS_SERIAL modbusSerial
-#define DEBUG_SERIAL Serial
-
-#define DRIVER_ENABLE_PIN D3
-#define READ_ENABLE_PIN   D2
+#include "main.h"
 
 void debugPrint(String s);
 void debugPrint(unsigned long l, int i);
 void debugPrintln(String s);
 void debugPrintln(unsigned long l, int i);
 
-bool noSwing = false;
 ESP8266WebServer server(80);
 
 #include "modbus_ascii.h"
