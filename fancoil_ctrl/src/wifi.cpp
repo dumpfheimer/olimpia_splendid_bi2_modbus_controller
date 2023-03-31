@@ -44,7 +44,7 @@ void connectToWifi(String SSID, String password) {
     }
 
     if (bestBSSID != nullptr) {
-        WiFi.begin(SSID, password, bestChannel, bestBSSID);
+        wl_status_t status = WiFi.begin(SSID, password, bestChannel, bestBSSID);
         if (!waitForWifi(wifiMgrWaitForConnectMs)) {
             WiFi.begin(SSID, password);
             waitForWifi(wifiMgrWaitForConnectMs);
@@ -58,6 +58,14 @@ void connectToWifi(String SSID, String password) {
     }
 }
 
+void setupWifi(const char* SSID, const char* password) {
+    setupWifi(SSID, password, nullptr);
+}
+
+void setupWifi(const char* SSID, const char* password, const char* hostname) {
+    setupWifi(SSID, password, nullptr, wifiMgrTolerateBadRSSms, wifiMgrWaitForConnectMs);
+}
+
 void setupWifi(const char* SSID, const char* password, const char* hostname, unsigned long tolerateBadRSSms, unsigned long waitForConnectMs) {
     WiFi.mode(WIFI_STA);
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
@@ -69,6 +77,8 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
     wifiMgrHN = hostname;
     wifiMgrTolerateBadRSSms = tolerateBadRSSms;
     wifiMgrWaitForConnectMs = waitForConnectMs;
+
+    connectToWifi(wifiMgrSSID, wifiMgrPW);
 }
 
 void loopWifi() {
