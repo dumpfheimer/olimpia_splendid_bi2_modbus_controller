@@ -308,6 +308,7 @@ void mqttHandleMessage(char* topic, byte* payload, unsigned int length) {
 
 void mqttReconnect() {
     while (!client.connected()) {
+        if (!WiFi.isConnected()) return;
         debugPrint("Reconnecting...");
         String lastWillTopic = "fancoil_ctrl/" + clientId + "/online/state";
         lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);

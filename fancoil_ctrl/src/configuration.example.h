@@ -17,3 +17,7 @@ const char* wifiHost = "FancoilCtrl";
 #define MQTT_USER ""
 #define MQTT_PASS ""
 */
+
+// if you want the controller to read the state of the fan coil too, you can enable it with this option:
+// otherwise the only way to change the state is by http/mqtt calls
+// #define ENABLE_READ_STATE

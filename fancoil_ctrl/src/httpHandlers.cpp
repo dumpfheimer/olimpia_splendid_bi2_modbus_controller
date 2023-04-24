@@ -62,6 +62,12 @@ void handleGet() {
         ret += "\"setpoint\": " + String(fancoil->getSetpoint()) + ",";
         ret += "\"ambient\": " + String(fancoil->getAmbient()) + ",";
 
+        if (fancoil->hasValidDesiredState) {
+            ret += "\"hasValidDesiredState\": true, ";
+        } else {
+            ret += "\"hasValidDesiredState\": false, ";
+        }
+
         if (fancoil->wantsToRead()) {
             ret += "\"wantsToRead\": true, ";
         } else {

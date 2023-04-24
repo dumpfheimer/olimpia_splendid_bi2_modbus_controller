@@ -51,6 +51,7 @@ void Fancoil::init(uint8_t addr) {
 void Fancoil::setOn(bool set) {
     if (on != set) syncState = SyncState::WRITING;
     on = set;
+    this->hasValidDesiredState = true;
 }
 
 bool Fancoil::isOn() {
@@ -208,9 +209,11 @@ bool Fancoil::wantsToRead() {
 
 PushResult Fancoil::pushState(Stream *stream) {
     readState(stream);
+#ifdef ENABLE_READ_STATE
     if (lastReadChangedValues) {
         return PushResult::READ_CHANGED_VALUES;
     }
+#endif
     if (!writeTo(stream)) {
         return PushResult::WRITE_FAILED;
     }
@@ -218,6 +221,7 @@ PushResult Fancoil::pushState(Stream *stream) {
 }
 
 bool Fancoil::writeTo(Stream *stream) {
+    if (!hasValidDesiredState) return false;
     uint8_t data[2];
 
     while (isBusy) yield();
@@ -300,7 +304,9 @@ bool Fancoil::readState(Stream *stream) {
 
     IncomingMessage *res = modbusReadRegister(stream, address, 101);
     if (res->success()) {
+#ifdef ENABLE_READ_STATE
         lastReadChangedValues = false;
+#endif
 
         byte data1 = res->data[1];
         byte data2 = res->data[2];
@@ -309,6 +315,8 @@ bool Fancoil::readState(Stream *stream) {
         debugPrintln(data2, BIN);
 
         communicationTimer = data1 & 0x0F;
+
+#ifdef ENABLE_READ_STATE
 
         if ((data1 & 0b01000000) && (data1 & 0b00100000)) {
             if (mode != Mode::FAN_ONLY) lastReadChangedValues = true;
@@ -360,7 +368,7 @@ bool Fancoil::readState(Stream *stream) {
                 speed = FanSpeed::AUTOMATIC;
                 break;
         }
-
+#endif
         if (!swingReadOnce && !noSwing) {
             debugPrintln("reading swing configuration");
             IncomingMessage *i = modbusReadRegister(stream, address, 224, 1);
@@ -433,7 +441,9 @@ bool Fancoil::readState(Stream *stream) {
         lastRead = millis();
 
 #ifdef MQTT_HOST
+#ifdef ENABLE_READ_STATE
         if (lastReadChangedValues) notifyStateChanged();
+#endif
 #endif
 
         isBusy = false;

@@ -41,11 +41,8 @@ void setup() {
 
 
     debugPrintln("Connecting to WiFi..");
-    setupWifi(kSsid, kPassword);
+    setupWifi(kSsid, kPassword, wifiHost);
 
-    if (!MDNS.begin(wifiHost)) {
-        debugPrintln("Error setting up MDNS responder!");
-    }
     debugPrintln(WiFi.localIP().toString());
 
     setupOTA();

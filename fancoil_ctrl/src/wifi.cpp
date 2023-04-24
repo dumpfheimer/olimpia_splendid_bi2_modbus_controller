@@ -1,13 +1,20 @@
 #include "wifi.h"
 
-MDNSResponder mdns;
+MDNSResponder wifiMgrMdns;
 unsigned long lastNonShitRSS = 0;
-unsigned long wifiMgrTolerateBadRSSms = 60000;
-unsigned long wifiMgrWaitForConnectMs = 10000;
-int8_t badRSS = -60;
+unsigned long wifiMgrTolerateBadRSSms = 300 * 1000; // 5m
+unsigned long wifiMgrRescanInterval = 3600 * 1000; // 1h
+unsigned long wifiMgrLastScan = 0;
+unsigned long wifiMgrWaitForConnectMs = 15000; // 15s
+unsigned long wifiMgrScanCount = 0;
+unsigned long wifiMgrConnectCount = 0;
+
+int8_t badRSS = -70;
 const char* wifiMgrSSID;
 const char* wifiMgrPW;
 const char* wifiMgrHN;
+
+ESP8266WebServer *wifiMgrServer;
 
 boolean waitForWifi(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
@@ -17,10 +24,15 @@ boolean waitForWifi(unsigned long timeout) {
     return WiFi.isConnected();
 }
 
-void connectToWifi(String SSID, String password) {
+void connectToWifi() {
     WiFi.scanDelete();
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    WiFi.mode(WIFI_STA);
 
-    int n = WiFi.scanNetworks(false, true);
+    wifiMgrScanCount++;
+
+    int n = WiFi.scanNetworks(false, false);
 
     String ssid;
     uint8_t encryptionType;
@@ -36,25 +48,38 @@ void connectToWifi(String SSID, String password) {
     for (int i = 0; i < n; i++)
     {
         WiFi.getNetworkInfo(i, ssid, encryptionType, RSSI, BSSID, channel, isHidden);
-        if (ssid.equals(SSID) && RSSI > bestRSSI) {
+        if (ssid.equals(wifiMgrSSID) && RSSI > bestRSSI) {
             bestRSSI = RSSI;
             bestBSSID = BSSID;
             bestChannel = channel;
         }
     }
 
+    wifiMgrLastScan = millis();
+
     if (bestBSSID != nullptr) {
-        wl_status_t status = WiFi.begin(SSID, password, bestChannel, bestBSSID);
+        WiFi.begin(wifiMgrSSID, wifiMgrPW, bestChannel, bestBSSID);
+        wifiMgrConnectCount++;
         if (!waitForWifi(wifiMgrWaitForConnectMs)) {
-            WiFi.begin(SSID, password);
+            WiFi.disconnect();
+            WiFi.mode(WIFI_OFF);
+            WiFi.mode(WIFI_STA);
+
+            WiFi.begin(wifiMgrSSID, wifiMgrPW);
+            wifiMgrConnectCount++;
             waitForWifi(wifiMgrWaitForConnectMs);
         }
     } else {
-        WiFi.begin(SSID, password);
+        WiFi.begin(wifiMgrSSID, wifiMgrPW);
+        wifiMgrConnectCount++;
         waitForWifi(wifiMgrWaitForConnectMs);
     }
+    if (WiFi.isConnected() && wifiMgrHN != nullptr) {
+        if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
+        wifiMgrMdns.begin(wifiMgrHN, WiFi.localIP());
+    }
     if (WiFi.isConnected()) {
-        mdns.begin(wifiMgrHN, WiFi.localIP());
+        lastNonShitRSS = millis();
     }
 }
 
@@ -63,11 +88,16 @@ void setupWifi(const char* SSID, const char* password) {
 }
 
 void setupWifi(const char* SSID, const char* password, const char* hostname) {
-    setupWifi(SSID, password, nullptr, wifiMgrTolerateBadRSSms, wifiMgrWaitForConnectMs);
+    setupWifi(SSID, password, hostname, wifiMgrTolerateBadRSSms, wifiMgrWaitForConnectMs);
 }
 
 void setupWifi(const char* SSID, const char* password, const char* hostname, unsigned long tolerateBadRSSms, unsigned long waitForConnectMs) {
+    setupWifi(SSID, password, hostname, tolerateBadRSSms, waitForConnectMs, wifiMgrRescanInterval);
+}
+
+void setupWifi(const char* SSID, const char* password, const char* hostname, unsigned long tolerateBadRSSms, unsigned long waitForConnectMs, unsigned long rescanInterval) {
     WiFi.mode(WIFI_STA);
+    if (hostname != nullptr) WiFi.hostname(hostname);
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
     WiFi.setAutoReconnect(false);
     ESP8266WiFiClass::persistent(false);
@@ -77,21 +107,57 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
     wifiMgrHN = hostname;
     wifiMgrTolerateBadRSSms = tolerateBadRSSms;
     wifiMgrWaitForConnectMs = waitForConnectMs;
+    wifiMgrRescanInterval = rescanInterval;
 
-    connectToWifi(wifiMgrSSID, wifiMgrPW);
+    connectToWifi();
 }
 
 void loopWifi() {
     if (!WiFi.isConnected()) {
-        connectToWifi(wifiMgrSSID, wifiMgrPW);
+        connectToWifi();
     } else {
         int8_t rss = WiFi.RSSI();
+
         if (rss < badRSS) {
             if ((millis() - lastNonShitRSS) > wifiMgrTolerateBadRSSms) {
-                connectToWifi(wifiMgrSSID, wifiMgrPW);
+                connectToWifi();
             }
         } else {
             lastNonShitRSS = millis();
         }
+
+        if (wifiMgrRescanInterval > 0 && (millis() - wifiMgrLastScan) > wifiMgrRescanInterval) {
+            connectToWifi();
+        }
     }
+}
+
+void sendRSSI() {
+    wifiMgrServer->send(200, "text/plain", String(WiFi.RSSI()));
+}
+
+void isConnected() {
+    wifiMgrServer->send(200, "text/plain", String(WiFi.isConnected()));
+}
+
+void ssid() {
+    wifiMgrServer->send(200, "text/plain", WiFi.SSID());
+}
+
+void bssid() {
+    wifiMgrServer->send(200, "text/plain", WiFi.BSSIDstr());
+}
+
+void status() {
+    String s = "ssid: " + WiFi.SSID() + "\nconnected: " + String(WiFi.isConnected()) + "\nbssid: " + WiFi.BSSIDstr() + "\nrssi: " + WiFi.RSSI();
+    wifiMgrServer->send(200, "text/plain", s);
+}
+
+void wifiMgrExpose(ESP8266WebServer *wifiMgrServer_) {
+    wifiMgrServer = wifiMgrServer_;
+    wifiMgrServer->on("/wifiMgr/rssi", sendRSSI);
+    wifiMgrServer->on("/wifiMgr/isConnected", isConnected);
+    wifiMgrServer->on("/wifiMgr/ssid", ssid);
+    wifiMgrServer->on("/wifiMgr/bssid", bssid);
+    wifiMgrServer->on("/wifiMgr/status", status);
 }

@@ -87,8 +87,11 @@ private:
 #endif
 
 public:
+#ifdef ENABLE_READ_STATE
     bool lastReadChangedValues = false;
+#endif
     bool isInUse = false;
+    bool hasValidDesiredState = false;
 
     Fancoil();
     Fancoil(uint8_t add);
