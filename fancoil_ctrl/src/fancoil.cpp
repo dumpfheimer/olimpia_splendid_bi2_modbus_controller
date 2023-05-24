@@ -51,6 +51,9 @@ void Fancoil::init(uint8_t addr) {
 void Fancoil::setOn(bool set) {
     if (on != set) syncState = SyncState::WRITING;
     on = set;
+}
+
+void Fancoil::notifyHasValidState() {
     this->hasValidDesiredState = true;
 }
 

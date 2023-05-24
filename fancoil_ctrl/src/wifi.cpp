@@ -14,12 +14,15 @@ const char* wifiMgrSSID;
 const char* wifiMgrPW;
 const char* wifiMgrHN;
 
+void (*loopFunctionPointer)(void) = nullptr;
+
 ESP8266WebServer *wifiMgrServer;
 
 boolean waitForWifi(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
     while (!WiFi.isConnected() && (millis() - waitForConnectStart) < timeout) {
-        delay(50);
+        if (loopFunctionPointer != nullptr) loopFunctionPointer();
+        delay(10);
     }
     return WiFi.isConnected();
 }
@@ -32,7 +35,12 @@ void connectToWifi() {
 
     wifiMgrScanCount++;
 
-    int n = WiFi.scanNetworks(false, false);
+    int n = WiFi.scanNetworks(true, false);
+
+    while (WiFi.scanComplete() == -1) {
+        if (loopFunctionPointer != nullptr) loopFunctionPointer();
+        delay(10);
+    }
 
     String ssid;
     uint8_t encryptionType;
@@ -160,4 +168,8 @@ void wifiMgrExpose(ESP8266WebServer *wifiMgrServer_) {
     wifiMgrServer->on("/wifiMgr/ssid", ssid);
     wifiMgrServer->on("/wifiMgr/bssid", bssid);
     wifiMgrServer->on("/wifiMgr/status", status);
+}
+
+void setLoopFunction(void (*loopFunctionPointerArg)(void)) {
+    loopFunctionPointer = loopFunctionPointerArg;
 }

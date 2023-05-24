@@ -416,6 +416,7 @@ void handleSet() {
     if (server.hasArg("swing")) {
         fancoil->setSwing(isTrue(server.arg("swing")));
     }
+    fancoil->notifyHasValidState();
 
     if (fancoil->writeTo(&MODBUS_SERIAL)) {
         handleGet();

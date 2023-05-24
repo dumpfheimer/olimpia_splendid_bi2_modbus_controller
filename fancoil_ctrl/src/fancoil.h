@@ -99,6 +99,7 @@ public:
     void init(uint8_t addr);
     void setOn(bool set);
     bool isOn();
+    void notifyHasValidState();
     void setSwing(bool swingOnSet);
     bool isSwingOn();
     void setSpeed(FanSpeed newSpeed);
