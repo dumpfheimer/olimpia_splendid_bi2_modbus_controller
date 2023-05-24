@@ -27,6 +27,8 @@ void Fancoil::init(uint8_t addr) {
     absenceConditionForced = AbsenceCondition::NOT_FORCED;
     syncState = SyncState::INVALID;
 
+    hasValidDesiredState = false;
+
     sendPeriod = 60000;
     readPeriod = 30000;
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S

@@ -44,6 +44,10 @@ void handleRoot() {
                 "<html><head><script src=\"s.js\"></script></head><body><a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\">Github page for help</a></br><form method=\"POST\" action=\"register\"><h3>Register fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"unregister\"><h3>Unregister fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"changeAddress\"><h3>Change fancoil address</h3><br/>Source Address (factory default is 0)<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"sourceAddress\"><br/>Target Address (1-32):<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"targetAddress\"><br/><input type=\"submit\"></form><h3>Debug</h3>Fan coil address:<br/><input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\"><button onclick=\"debug()\">Debug</button><button onclick=\"debug(quickDebugRegs)\">Quick Debug</button><div id=\"debugOut\"></div></body></html>");
 }
 
+void handleUptime() {
+    server.send(200, "text/html", String(millis() / 1000));
+}
+
 void handleGet() {
     uint8_t addr = getAddress();
 
@@ -506,9 +510,10 @@ void setupHttp() {
     server.on("/write", HTTP_POST, handleWrite);
     server.on("/register", HTTP_POST, handleRegister);
     server.on("/unregister", HTTP_POST, handleUnregister);
-    server.on("/list", handleList);
+        server.on("/list", handleList);
     server.on("/factoryReset", HTTP_POST, handleFactoryReset);
     server.on("/resetWaterTemperatureFault", handleResetWaterTemperatureFault);
+        server.on("/uptime", handleUptime);
 
     server.on("/modbusReadCount", handleModbusReadCount);
     server.on("/modbusReadErrors", handleModbusReadErrors);
