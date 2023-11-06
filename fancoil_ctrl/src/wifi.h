@@ -15,6 +15,7 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 void setupWifi(const char* SSID, const char* password, const char* hostname, unsigned long tolerateBadRSSms, unsigned long waitForConnectMs, unsigned long rescanInterval);
 void loopWifi();
 void wifiMgrExpose(ESP8266WebServer *server_);
+void wifiMgrSetBadRSSI(int8_t rssi);
 void setLoopFunction(void (*loopFunctionPointerArg)(void));
 
 #endif //WIFI_MGR_H

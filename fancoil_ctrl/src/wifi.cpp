@@ -28,9 +28,10 @@ boolean waitForWifi(unsigned long timeout) {
 }
 
 void connectToWifi() {
+    if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
+    //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
     WiFi.scanDelete();
-    WiFi.disconnect();
-    WiFi.mode(WIFI_OFF);
+    WiFi.disconnect(false);
     WiFi.mode(WIFI_STA);
 
     wifiMgrScanCount++;
@@ -41,6 +42,7 @@ void connectToWifi() {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
         delay(10);
     }
+    n = WiFi.scanComplete();
 
     String ssid;
     uint8_t encryptionType;
@@ -88,6 +90,7 @@ void connectToWifi() {
     }
     if (WiFi.isConnected()) {
         lastNonShitRSS = millis();
+        //if (wifiMgrServer != nullptr) wifiMgrServer->begin();
     }
 }
 
@@ -107,6 +110,7 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
     WiFi.mode(WIFI_STA);
     if (hostname != nullptr) WiFi.hostname(hostname);
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
+    WiFi.setAutoConnect(false);
     WiFi.setAutoReconnect(false);
     ESP8266WiFiClass::persistent(false);
 
@@ -168,6 +172,10 @@ void wifiMgrExpose(ESP8266WebServer *wifiMgrServer_) {
     wifiMgrServer->on("/wifiMgr/ssid", ssid);
     wifiMgrServer->on("/wifiMgr/bssid", bssid);
     wifiMgrServer->on("/wifiMgr/status", status);
+}
+
+void wifiMgrSetBadRSSI(int8_t rssi) {
+    badRSS = rssi;
 }
 
 void setLoopFunction(void (*loopFunctionPointerArg)(void)) {

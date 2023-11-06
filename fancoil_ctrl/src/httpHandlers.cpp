@@ -353,7 +353,7 @@ void handleSet() {
         return;
     }
 
-    fancoil->readState(&MODBUS_SERIAL);
+    //fancoil->readState(&MODBUS_SERIAL);
     /*if (fancoil->lastReadChangedValues) {
       server.send(500, "application/json", "{\"error\": \"out of sync\"}");
       return;
