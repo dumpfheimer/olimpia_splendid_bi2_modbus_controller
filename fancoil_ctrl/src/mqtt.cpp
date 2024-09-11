@@ -130,6 +130,9 @@ void sendFancoilState(Fancoil *fancoil) {
 
     state = fancoil->boilerOn() || fancoil->chillerOn() ? "ON" : "OFF";
     publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming/state", state, false);
+
+    state = fancoil->ev1On() ? "ON" : "OFF";
+    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ev1/state", state, false);
 }
 
 void sendFancoilStates() {
@@ -297,7 +300,7 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
     if (cmd == "set") {
         debugPrintln("Received set command for addr " + address + " property " + topicName);
         Fancoil *f = getFancoilByAddress((int) address.toDouble());
-        if (f != NULL) {
+        if (f != nullptr) {
             char *msg_ba = (char *) malloc(sizeof(char) * (length + 1));
             memcpy(msg_ba, (char *) payload, length);
             msg_ba[length] = 0;
@@ -324,11 +327,11 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
                     f->setOn(false);
                 }
             } else if (topicName == "fan_speed") {
-                if (msg == "auto") {
+                if (msg == "auto" || msg == "automatic") {
                     f->setSpeed(FanSpeed::AUTOMATIC);
-                } else if (msg == "low") {
+                } else if (msg == "low" || msg == "min") {
                     f->setSpeed(FanSpeed::MIN);
-                } else if (msg == "high") {
+                } else if (msg == "high" || msg == "max") {
                     f->setSpeed(FanSpeed::MAX);
                 } else if (msg == "night") {
                     f->setSpeed(FanSpeed::NIGHT);
@@ -342,12 +345,11 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
             }
             free(msg_ba);
             notifyStateChanged();
-
-            if (f->writeTo(&MODBUS_SERIAL)) {
-                // ok
-            }
+            f->notifyHasValidState();
+            f->forceWrite();
         } else {
-            debugPrint("No fancoil with address " + ((int) address.toDouble()));
+            debugPrint("No fancoil with address ");
+            debugPrintln(((int) address.toDouble()));
         }
     }
 }
@@ -358,7 +360,7 @@ void mqttReconnect() {
         debugPrint("Reconnecting...");
         String lastWillTopic = "fancoil_ctrl/" + clientId + "/online/state";
         lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
-        if (!client.connect(clientIdCharArray, MQTT_USER, MQTT_PASS, topicBuffer, true, 1, "OFF")) {
+        if (!client.connect(clientIdCharArray, MQTT_USER, MQTT_PASS, topicBuffer, true, true, "OFF")) {
             debugPrint("failed, rc=");
             debugPrint(client.state());
             debugPrintln(" retrying in 5 seconds");
@@ -367,13 +369,13 @@ void mqttReconnect() {
             debugPrint("success");
             sendHomeAssistantConfiguration();
             lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
-            client.publish(topicBuffer, "ON");
+            client.publish(topicBuffer, "ON", true);
 
             lastWillTopic = "fancoil_ctrl/" + clientId + "/ip/state";
             lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
             String ip = WiFi.localIP().toString();
             ip.toCharArray(messageBuffer, MESSAGE_BUFFER_SIZE);
-            client.publish(topicBuffer, messageBuffer);
+            client.publish(topicBuffer, messageBuffer, true);
         }
     }
 }
@@ -389,6 +391,7 @@ void setupMqtt() {
     clientId.replace(":", "-");
     clientIdCharArray = (char *) malloc(sizeof(char) * (12 + 5));
     clientId.toCharArray(clientIdCharArray, (12 + 5));
+    client.setBufferSize(500);
 }
 
 void loopMqtt() {

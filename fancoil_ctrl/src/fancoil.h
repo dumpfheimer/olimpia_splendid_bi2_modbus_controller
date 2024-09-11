@@ -55,6 +55,7 @@ private:
 
     double setpoint = 22;
     double ambientTemperature = 21;
+    bool forceWrite_ = false;
 
     // the last successful write
     unsigned long lastSend = 0;
@@ -119,6 +120,7 @@ public:
     SyncState getSyncState();
     bool ambientTemperatureIsValid();
     bool readTimeout();
+    void forceWrite();
     bool wantsToWrite();
     bool wantsToRead();
     PushResult pushState(Stream *stream);
