@@ -346,7 +346,7 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
             free(msg_ba);
             notifyStateChanged();
             f->notifyHasValidState();
-            f->forceWrite();
+            f->forceWrite(100); // wait for 100 before force write to give more mqtt messages time to be received
         } else {
             debugPrint("No fancoil with address ");
             debugPrintln(((int) address.toDouble()));

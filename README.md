@@ -4,7 +4,7 @@
 
 ### Temporary, crappy HowTo:
 
-1. Open the project in Arduino IDE
+1. Download and install Platform IO ( https://platformio.org/platformio-ide )
 2. Configure WiFi (copy configuration.example.h to configuration.h)
 3. Flash it on your ESP8266 (I used a D1 Mini)
 4. Wire up the modbus converter (details will follow)
