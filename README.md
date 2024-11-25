@@ -4,15 +4,13 @@
 
 ### Temporary, crappy HowTo:
 
-1. Download and install Platform IO ( https://platformio.org/platformio-ide )
-2. Configure WiFi (copy fancoil_ctrl/src/configuration.example.h to fancoil_ctrl/src/confidguration.h and change values accordingly)
-3. Flash it on your ESP8266 (I used a D1 Mini lite; if you are using an other board, configure it in the platformio.ini accordingly)
-4. Wire up the modbus converter (details will follow)
-5. Connect the modbus devices
-6. Put your Fan Coil into "Remote" Mode (check the manual, for me, I think, it was touching "-" and the fan "button" for 10s)
-7. If needed, change the fan coil address
-8. Register the fan coil address (see registering/unregistering)
-9. Change Fancoil Settings over http://CONTROLLER_IP/set?on=1
+1. Configure, compile and flash Software (see [Software section](#SOFTWARE))
+2. Wire up the modbus converter (see [Wire Connections section](#Wire Connections))
+3. Connect the modbus devices
+4. Put your Fan Coil into "Remote" Mode (check the manual, for me, I think, it was touching "-" and the fan "button" for 10s)
+5. If needed, change the fan coil address
+6. Register the fan coil address (see registering/unregistering)
+7. Change Fancoil Settings over http://CONTROLLER_IP/set?on=1
 
 ### Controlling the fan coil over HTTP
 
@@ -29,53 +27,45 @@ HTTP params:
 - swing: (true/false): turn on/off swinging
 - fanonly: (true/false): only turn on fan, do not heat ore cool
 - mode: (COOLING/HEATING): mode
+
+
 ## SOFTWARE
 
 How to compile the software:
 
-1. Download and setup Arduino IDE https://www.arduino.cc/en/software/
-2. Open this project in the IDE
-3. Install the ESP8266 board (google instructions; or follow https://randomnerdtutorials.com/how-to-install-esp8266-board-arduino-ide/)
-4. Install the Elegant OTA update library https://github.com/ayushsharma82/ElegantOTA#how-to-install
-5. Hope that I didn't forget any other needed libs
-6. Copy configuration.example.h to configuration.h
-7. Change the WiFi name and password in configuration.h
-8. compile and run it =)
+1. Download and install Platform IO ( https://platformio.org/platformio-ide )
+2. chdir into the software folder
+3. Copy src/configuration.example.h to src/configuration.h
+4. Change the WiFi name and password in configuration.h (double check; they are case sensitive)
+5. run "pio run" (or compile/run using Visual Studio)
+
 
 ## HARDWARE
 
-I used a Wemos D1 Mini with a MAX 485 Module like https://www.amazon.de/ANGEEK-MAX485-Module-Converter-arduino/dp/B07X541M2T
-
+I used a Wemos D1 Mini Lite (but any ESP8266 should work fine, and the code should be adaptable to an ESP32 with minimal effort) with a MAX 485 Module like https://www.amazon.de/ANGEEK-MAX485-Module-Converter-arduino/dp/B07X541M2T
 Check out the PCB design in the pcb folder.
 
 
-#### Wire Connections:
+#### Wire Connections
 
-(need to look that up)
+| ESP        | MAX485 |
+|------------|--------|
+| 5V         | 5V     |
+| GND        | GND    |
+| GPIO2 / D4 | RO     |
+| GPIO0 / D3 | RE     |
+| GPIO4 / D2 | DE     |
+| GPIO5 / D1 | DI     |
+
 
 
 ## ADDRESSING
 
-By default the fancoil uses address 0
+By default, the fancoil uses address 0
 You can change the address of the fancoil by http://CONTROLLER_IP/changeAddress?sourceAddress=X&targetAddress=Y
-NOTE: EVERY fancoil connected to the modbus using the source address will change its address. Make sure you are changing one by one.
+NOTE: EVERY fancoil connected to the modbus using the source address will change its address. Make sure you are changing addresses one by one.
 
 ## Registering / Unregistering
 
 Address must be registered. You can register an address by opening http://CONTROLLER_IP/ in a browser, enter the address (int) at the "register address form" and hit submit
-You should unregister unused fancoils, because the controller will try to reach the address periodically unnessecarily otherwise.
-
-## Wiring
-**MAX -> ESP**
-
-GND -> GND
-
-5V -> 5V
-
-DI -> D1
-
-DE -> D2
-
-RE -> D3
-
-RO -> D4
+You should unregister unused fancoils, because the controller will try to reach the address periodically unnecessarily otherwise.
