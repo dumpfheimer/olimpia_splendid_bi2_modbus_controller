@@ -5,7 +5,7 @@
 ### Temporary, crappy HowTo:
 
 1. Configure, compile and flash Software (see [Software section](#SOFTWARE))
-2. Wire up the modbus converter (see [Wire Connections section](#Wire Connections))
+2. Wire up the modbus converter (see [Hardware section](#HARDWARE))
 3. Connect the modbus devices
 4. Put your Fan Coil into "Remote" Mode (check the manual, for me, I think, it was touching "-" and the fan "button" for 10s)
 5. If needed, change the fan coil address
