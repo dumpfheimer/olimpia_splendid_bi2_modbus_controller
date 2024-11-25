@@ -42,6 +42,7 @@ void setup() {
 
     debugPrintln("Connecting to WiFi..");
     setupWifi(kSsid, kPassword, wifiHost);
+    wifiMgrExpose(&server);
 
     debugPrintln(WiFi.localIP().toString());
 

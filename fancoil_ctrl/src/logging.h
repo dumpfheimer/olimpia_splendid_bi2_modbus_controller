@@ -7,7 +7,7 @@
 
 #include "Arduino.h"
 
-#define USE_LOGGING
+//#define USE_LOGGING
 #define DEBUG_SERIAL Serial
 
 

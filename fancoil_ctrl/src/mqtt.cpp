@@ -276,6 +276,41 @@ void sendHomeAssistantConfiguration() {
                           "_state\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
                           clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
 
+	    // hvac
+	    DynamicJsonDocument doc(1024);
+	    doc.clear();
+
+	    doc["name"] = "Fancoil " + addr + "";
+            doc["icon"] = "mdi:home-thermometer-outline";
+            doc["send_if_off"] = "true";
+            doc["unique_id"] = "hvac_" + clientId + "-" + addr + "";
+            doc["availability_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/state";
+            doc["payload_available"] = "online";
+            doc["payload_not_available"] = "offline";
+            doc["mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/set";
+            doc["mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/state";
+            doc["action_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/action/state";
+            doc["modes"] = "heat", "cool", "off";
+            doc["min_temp"] = "15";
+            doc["max_temp"] = "30";
+            doc["precision"] = "0.1";
+            doc["retain"] = "true";
+            doc["temperature_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set";
+            doc["temperature_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/state";
+            doc["temp_step"] = "0.5";
+            doc["fan_mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set";
+            doc["fan_mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state";
+            doc["fan_modes"] = "auto", "high", "low", "night";
+            JsonObject device  = doc.createNestedObject("device");
+            device["name"] = "Fancoil " + addr + "";
+            device["via_device"] = "Fancoil CTRL";
+            device["identifiers"] = "hvac_" + clientId + "-" + addr + "";
+            device["model"] = "Bi2 SL Smart 400";
+            device["manufacturer"] = "Olimpia Splendid";
+            serializeJson(doc, messageBuffer);
+	    publishHelper("homeassistant/climate/" + clientId + "-" + addr + "/config", messageBuffer);
+	    doc.clear();
+
             sendFancoilState(fancoil);
         } else {
         }
