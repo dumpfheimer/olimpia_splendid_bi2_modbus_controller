@@ -5,8 +5,8 @@
 ### Temporary, crappy HowTo:
 
 1. Download and install Platform IO ( https://platformio.org/platformio-ide )
-2. Configure WiFi (copy configuration.example.h to configuration.h)
-3. Flash it on your ESP8266 (I used a D1 Mini)
+2. Configure WiFi (copy fancoil_ctrl/src/configuration.example.h to fancoil_ctrl/src/confidguration.h and change values accordingly)
+3. Flash it on your ESP8266 (I used a D1 Mini lite; if you are using an other board, configure it in the platformio.ini accordingly)
 4. Wire up the modbus converter (details will follow)
 5. Connect the modbus devices
 6. Put your Fan Coil into "Remote" Mode (check the manual, for me, I think, it was touching "-" and the fan "button" for 10s)
