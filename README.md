@@ -46,7 +46,7 @@ I used a Wemos D1 Mini Lite (but any ESP8266 should work fine, and the code shou
 Check out the PCB design in the pcb folder.
 
 
-#### Wire Connections
+### Wire Connections
 
 | ESP        | MAX485 |
 |------------|--------|
