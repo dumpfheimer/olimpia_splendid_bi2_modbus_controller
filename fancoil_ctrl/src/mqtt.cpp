@@ -5,7 +5,7 @@
 #define MQTT_USER_BUFFER_SIZE 128
 #define MQTT_PASS_BUFFER_SIZE 128
 #define TOPIC_BUFFER_SIZE 128
-#define MESSAGE_BUFFER_SIZE 1024
+#define MESSAGE_BUFFER_SIZE 2048
 
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
@@ -21,6 +21,8 @@ char *mqttPassCharArray;
 boolean stateChanged = false;
 unsigned long lastSend = 0;
 
+DynamicJsonDocument doc(MESSAGE_BUFFER_SIZE);
+
 void notifyStateChanged() {
     stateChanged = true;
 }
@@ -33,6 +35,12 @@ void publishHelper(String *publishTopic, String *publishMessage, bool retain) {
 
 void publishHelper(String publishTopic, String publishMessage, bool retain) {
     publishHelper(&publishTopic, &publishMessage, retain);
+}
+
+void sendMessageBufferTo(String publishTopic, bool retain) {
+    String *ptr = &publishTopic;
+    ptr->toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
+    client.publish(topicBuffer, messageBuffer, retain);
 }
 
 void subscribeHelper(String *subscribeTopic) {
@@ -130,6 +138,9 @@ void sendFancoilState(Fancoil *fancoil) {
 
     state = fancoil->boilerOn() || fancoil->chillerOn() ? "ON" : "OFF";
     publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming/state", state, false);
+
+    state = fancoil->ev1On() ? "ON" : "OFF";
+    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ev1/state", state, false);
 }
 
 void sendFancoilStates() {
@@ -277,14 +288,13 @@ void sendHomeAssistantConfiguration() {
                           clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
 
 	    // hvac
-	    DynamicJsonDocument doc(1024);
 	    doc.clear();
 
-	    doc["name"] = "Fancoil " + addr + "";
+            doc["name"] = "Fancoil " + clientId + ":" + addr + "";
             doc["icon"] = "mdi:home-thermometer-outline";
             doc["send_if_off"] = "true";
             doc["unique_id"] = "hvac_" + clientId + "-" + addr + "";
-            doc["availability_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/state";
+            doc["availability_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/state/state";
             doc["payload_available"] = "online";
             doc["payload_not_available"] = "offline";
             doc["mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/set";
@@ -293,8 +303,9 @@ void sendHomeAssistantConfiguration() {
             doc["modes"] = "heat", "cool", "off";
             doc["min_temp"] = "15";
             doc["max_temp"] = "30";
-            doc["precision"] = "0.1";
+            doc["precision"] = 0.1;
             doc["retain"] = "true";
+            doc["current_temperature_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/state";
             doc["temperature_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set";
             doc["temperature_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/state";
             doc["temp_step"] = "0.5";
@@ -302,13 +313,13 @@ void sendHomeAssistantConfiguration() {
             doc["fan_mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state";
             doc["fan_modes"] = "auto", "high", "low", "night";
             JsonObject device  = doc.createNestedObject("device");
-            device["name"] = "Fancoil " + addr + "";
-            device["via_device"] = "Fancoil CTRL";
-            device["identifiers"] = "hvac_" + clientId + "-" + addr + "";
-            device["model"] = "Bi2 SL Smart 400";
-            device["manufacturer"] = "Olimpia Splendid";
-            serializeJson(doc, messageBuffer);
-	    publishHelper("homeassistant/climate/" + clientId + "-" + addr + "/config", messageBuffer);
+            device["name"] = "Fancoil " + clientId + "-" + addr + "";
+            //device["via_device"] = "Fancoil CTRL";
+            device["identifiers"] = "fancoil_" + clientId + "-" + addr + "";
+	    /*device["model"] = "Bi2 SL Smart 400";
+            device["manufacturer"] = "Olimpia Splendid";*/
+            serializeJson(doc, messageBuffer, MESSAGE_BUFFER_SIZE);
+	    sendMessageBufferTo("homeassistant/climate/" + clientId + "-" + addr + "/config", true);
 	    doc.clear();
 
             sendFancoilState(fancoil);
@@ -332,7 +343,7 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
     if (cmd == "set") {
         debugPrintln("Received set command for addr " + address + " property " + topicName);
         Fancoil *f = getFancoilByAddress((int) address.toDouble());
-        if (f != NULL) {
+        if (f != nullptr) {
             char *msg_ba = (char *) malloc(sizeof(char) * (length + 1));
             memcpy(msg_ba, (char *) payload, length);
             msg_ba[length] = 0;
@@ -359,11 +370,11 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
                     f->setOn(false);
                 }
             } else if (topicName == "fan_speed") {
-                if (msg == "auto") {
+                if (msg == "auto" || msg == "automatic") {
                     f->setSpeed(FanSpeed::AUTOMATIC);
-                } else if (msg == "low") {
+                } else if (msg == "low" || msg == "min") {
                     f->setSpeed(FanSpeed::MIN);
-                } else if (msg == "high") {
+                } else if (msg == "high" || msg == "max") {
                     f->setSpeed(FanSpeed::MAX);
                 } else if (msg == "night") {
                     f->setSpeed(FanSpeed::NIGHT);
@@ -377,12 +388,11 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
             }
             free(msg_ba);
             notifyStateChanged();
-
-            if (f->writeTo(&MODBUS_SERIAL)) {
-                // ok
-            }
+            f->notifyHasValidState();
+            f->forceWrite(100); // wait for 100 before force write to give more mqtt messages time to be received
         } else {
-            debugPrint("No fancoil with address " + ((int) address.toDouble()));
+            debugPrint("No fancoil with address ");
+            debugPrintln(((int) address.toDouble()));
         }
     }
 }
@@ -393,7 +403,7 @@ void mqttReconnect() {
         debugPrint("Reconnecting...");
         String lastWillTopic = "fancoil_ctrl/" + clientId + "/online/state";
         lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
-        if (!client.connect(clientIdCharArray, MQTT_USER, MQTT_PASS, topicBuffer, true, 1, "OFF")) {
+        if (!client.connect(clientIdCharArray, MQTT_USER, MQTT_PASS, topicBuffer, true, true, "OFF")) {
             debugPrint("failed, rc=");
             debugPrint(client.state());
             debugPrintln(" retrying in 5 seconds");
@@ -402,13 +412,13 @@ void mqttReconnect() {
             debugPrint("success");
             sendHomeAssistantConfiguration();
             lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
-            client.publish(topicBuffer, "ON");
+            client.publish(topicBuffer, "ON", true);
 
             lastWillTopic = "fancoil_ctrl/" + clientId + "/ip/state";
             lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
             String ip = WiFi.localIP().toString();
             ip.toCharArray(messageBuffer, MESSAGE_BUFFER_SIZE);
-            client.publish(topicBuffer, messageBuffer);
+            client.publish(topicBuffer, messageBuffer, true);
         }
     }
 }
@@ -424,6 +434,7 @@ void setupMqtt() {
     clientId.replace(":", "-");
     clientIdCharArray = (char *) malloc(sizeof(char) * (12 + 5));
     clientId.toCharArray(clientIdCharArray, (12 + 5));
+    client.setBufferSize(MESSAGE_BUFFER_SIZE);
 }
 
 void loopMqtt() {

@@ -55,6 +55,8 @@ private:
 
     double setpoint = 22;
     double ambientTemperature = 21;
+    bool forceWrite_ = false;
+    unsigned long forceWriteAt = 0;
 
     uint8_t data[2];
     uint8_t recData[2];
@@ -123,6 +125,8 @@ public:
     SyncState getSyncState();
     bool ambientTemperatureIsValid();
     bool readTimeout();
+    void forceWrite();
+    void forceWrite(unsigned long ms);
     bool wantsToWrite();
     bool wantsToRead();
     PushResult pushState(Stream *stream);

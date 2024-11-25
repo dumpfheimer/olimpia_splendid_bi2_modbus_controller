@@ -199,11 +199,26 @@ bool Fancoil::readTimeout() {
     }
 }
 
+void Fancoil::forceWrite() {
+    forceWrite_ = true;
+    forceWriteAt = millis();
+}
+// we do not care about rollover scenarios here
+void Fancoil::forceWrite(unsigned long ms) {
+    forceWrite_ = true;
+    forceWriteAt = millis() + ms;
+}
+
 bool Fancoil::wantsToWrite() {
     if (syncState == SyncState::INVALID) {
         // we want to read first
         debugPrintln("sync state is invalid");
         return false;
+    }
+    if (forceWrite_ && forceWriteAt <= millis()) {
+        debugPrintln("write due to forceWrite");
+        forceWrite_ = false;
+        return true;
     }
     // write periodically
     if ((millis() - lastSend) > sendPeriod) {
