@@ -26,7 +26,10 @@ void Fancoil::init(uint8_t addr) {
     mode = Mode::COOLING;
     absenceConditionForced = AbsenceCondition::NOT_FORCED;
     syncState = SyncState::INVALID;
+
+#ifdef ENABLE_READ_STATE
     lastReadChangedValues = false;
+#endif
 
     hasValidDesiredState = false;
 
@@ -343,7 +346,11 @@ bool Fancoil::writeTo(Stream *stream) {
 
     isBusy = false;
     readState(stream);
-    if (successfullWrites == 3 && !lastReadChangedValues) {
+    if (successfullWrites == 3
+#ifdef ENABLE_READ_STATE
+		    && !lastReadChangedValues
+#endif
+		    ) {
         syncState = SyncState::HAPPY;
         lastSend = millis();
         return true;

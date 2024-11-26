@@ -198,7 +198,7 @@ void handleRead() {
         return;
     }
 
-    Fancoil *fancoil = getFancoilByAddress(addr);
+    //Fancoil *fancoil = getFancoilByAddress(addr);
 
     uint16_t reg = server.arg("reg").toDouble();
     uint16_t len = server.arg("len").toDouble();
@@ -224,7 +224,7 @@ void handleWrite() {
         return;
     }
 
-    Fancoil *fancoil = getFancoilByAddress(addr);
+    //Fancoil *fancoil = getFancoilByAddress(addr);
 
     uint16_t reg = server.arg("reg").toDouble();
     uint16_t val = server.arg("val").toDouble();
