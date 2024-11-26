@@ -21,7 +21,7 @@ char *mqttPassCharArray;
 boolean stateChanged = false;
 unsigned long lastSend = 0;
 
-DynamicJsonDocument doc(MESSAGE_BUFFER_SIZE);
+JsonDocument doc;
 
 void notifyStateChanged() {
     stateChanged = true;
@@ -288,8 +288,6 @@ void sendHomeAssistantConfiguration() {
                           clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
 
 	    // hvac
-	    doc.clear();
-
             doc["name"] = "Fancoil " + clientId + ":" + addr + "";
             doc["icon"] = "mdi:home-thermometer-outline";
             doc["send_if_off"] = "true";
@@ -300,7 +298,7 @@ void sendHomeAssistantConfiguration() {
             doc["mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/set";
             doc["mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/state";
             doc["action_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/action/state";
-            doc["modes"] = "heat", "cool", "off";
+            doc["modes"] = "heat, cool, off";
             doc["min_temp"] = "15";
             doc["max_temp"] = "30";
             doc["precision"] = 0.1;
@@ -311,8 +309,8 @@ void sendHomeAssistantConfiguration() {
             doc["temp_step"] = "0.5";
             doc["fan_mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set";
             doc["fan_mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state";
-            doc["fan_modes"] = "auto", "high", "low", "night";
-            JsonObject device  = doc.createNestedObject("device");
+            doc["fan_modes"] = "auto, high, low, night";
+            JsonObject device  = doc["device"].to<JsonObject>();
             device["name"] = "Fancoil " + clientId + "-" + addr + "";
             //device["via_device"] = "Fancoil CTRL";
             device["identifiers"] = "fancoil_" + clientId + "-" + addr + "";

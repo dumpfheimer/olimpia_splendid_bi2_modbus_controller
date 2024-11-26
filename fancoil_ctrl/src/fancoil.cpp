@@ -353,7 +353,7 @@ bool Fancoil::writeTo(Stream *stream) {
 }
 
 bool Fancoil::readState(Stream *stream) {
-    unsigned long lastReadTry = millis();
+    lastReadTry = millis();
     // read 101, ( and maybe 009 105)
     unsigned long start = millis();
     unsigned long timeout = 1000;
@@ -440,7 +440,7 @@ bool Fancoil::readState(Stream *stream) {
             if (i->valid) {
                 if (i->address == address && i->functionCode == 3) {
                     byte data1 = i->data[1];
-                    byte data2 = i->data[2];
+                    //byte data2 = i->data[2];
                     bool isOn = (data1 & 0b10) > 0;
 
                     debugPrint("swing is ");
@@ -577,7 +577,7 @@ bool Fancoil::resetWaterTemperatureFault(Stream *stream) {
         if (i->address == address && i->functionCode == 3) {
             byte data1 = i->data[1];
             byte data2 = i->data[2];
-            bool isFaulty = data2 & 0x01000000 > 0;
+            bool isFaulty = (data2 & 0x01000000) > 0;
 
             if (isFaulty) {
                 data2 = data2 & 0x10111111;

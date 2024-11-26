@@ -41,7 +41,11 @@ void setup() {
 
 
     debugPrintln("Connecting to WiFi..");
+#ifdef WIFI_SSID
+    setupWifi(WIFI_SSID, WIFI_PASSWORD, WIFI_HOST);
+#else
     setupWifi(kSsid, kPassword, wifiHost);
+#endif
     wifiMgrExpose(&server);
 
     debugPrintln(WiFi.localIP().toString());
