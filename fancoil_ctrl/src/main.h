@@ -7,10 +7,15 @@
 
 #define MODBUS_SERIAL modbusSerial
 
+#if defined(ESP8266)
 #include <SoftwareSerial.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
+extern SoftwareSerial modbusSerial;
+#elif defined(ESP32)
+#include <HardwareSerial.h>
+extern HardwareSerial modbusSerial;
+#else
+#error "This hardware is not supported"
+#endif
 
 #include "ota.h"
 #include "httpHandlers.h"
@@ -22,8 +27,7 @@
 #define DRIVER_ENABLE_PIN D3
 #define READ_ENABLE_PIN   D2
 
-extern ESP8266WebServer server;
-extern SoftwareSerial modbusSerial;
+extern XWebServer server;
 
 
 #endif //FANCOIL_CTRL_MAIN_H

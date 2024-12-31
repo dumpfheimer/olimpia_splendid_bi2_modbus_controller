@@ -1,6 +1,10 @@
 #include "wifi.h"
 
+#if defined(ESP8266)
 MDNSResponder wifiMgrMdns;
+#elif defined(ESP32)
+#endif
+
 unsigned long wifiMgrLastNonShitRSS = 0;
 unsigned long wifiMgrlastConnected = 0;
 unsigned long wifiMgrNotifyNoWifiTimeout = 600 * 1000; // 10m
@@ -22,7 +26,7 @@ const char* wifiMgrHN;
 void (*loopFunctionPointer)(void) = nullptr;
 void (*wifiMgrNotifyNoWifiCallback)(void) = nullptr;
 
-ESP8266WebServer *wifiMgrServer;
+XWebServer *wifiMgrServer;
 
 boolean waitForWifi(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
@@ -34,8 +38,12 @@ boolean waitForWifi(unsigned long timeout) {
 }
 
 void connectToWifi() {
+
+#if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
-    //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
+#elif defined(ESP32)
+#endif
+
     WiFi.scanDelete();
     WiFi.disconnect(true);
     WiFi.mode(WIFI_STA);
@@ -65,7 +73,13 @@ void connectToWifi() {
         int32_t bestChannel = 0;
 
         for (int i = 0; i < n; i++) {
+#if defined(ESP8266)
             WiFi.getNetworkInfo(i, ssid, encryptionType, RSSI, BSSID, channel, isHidden);
+#elif defined(ESP32)
+            WiFi.getNetworkInfo(i, ssid, encryptionType, RSSI, BSSID, channel);
+	    isHidden = false;
+#endif
+
             if (!isHidden && ssid.equals(wifiMgrSSID) && RSSI > bestRSSI) {
                 bestRSSI = RSSI;
                 bestBSSID = BSSID;
@@ -88,8 +102,14 @@ void connectToWifi() {
             } else {
 		wifiMgrUnsuccessfullTries = 0;
 		if (wifiMgrHN != nullptr) {
+
+#if defined(ESP8266)
                     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
                     wifiMgrMdns.begin(wifiMgrHN, WiFi.localIP());
+#elif defined(ESP32)
+		    mdns_init();
+		    mdns_hostname_set(wifiMgrHN);
+#endif
 		}
                 wifiMgrLastNonShitRSS = millis();
             }
@@ -122,10 +142,17 @@ void onOTAEnd(bool success) {
 void setupWifi(const char* SSID, const char* password, const char* hostname, unsigned long tolerateBadRSSms, unsigned long waitForConnectMs, unsigned long waitForScanMs, unsigned long rescanInterval) {
     WiFi.mode(WIFI_STA);
     if (hostname != nullptr) WiFi.hostname(hostname);
-    WiFi.setSleepMode(WIFI_NONE_SLEEP);
     WiFi.setAutoConnect(false);
     WiFi.setAutoReconnect(false);
+
+#if defined(ESP8266)
     ESP8266WiFiClass::persistent(false);
+    WiFi.setSleepMode(WIFI_NONE_SLEEP);
+#elif defined(ESP32)
+    WiFi.persistent(false);
+    WiFi.setSleep(false);
+#endif
+
 
     wifiMgrSSID = SSID;
     wifiMgrPW = password;
@@ -198,7 +225,7 @@ void restart() {
     ESP.restart();
 }
 
-void wifiMgrExpose(ESP8266WebServer *wifiMgrServer_) {
+void wifiMgrExpose(XWebServer *wifiMgrServer_) {
     wifiMgrServer = wifiMgrServer_;
     wifiMgrServer->on("/wifiMgr/rssi", sendRSSI);
     wifiMgrServer->on("/wifiMgr/isConnected", isConnected);

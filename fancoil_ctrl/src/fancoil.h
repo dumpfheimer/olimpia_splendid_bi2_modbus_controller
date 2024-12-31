@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
 
 #include "logging.h"
 #include "modbus_ascii.h"
