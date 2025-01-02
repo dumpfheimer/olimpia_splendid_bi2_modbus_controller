@@ -300,9 +300,6 @@ void handleUnregister() {
     } else {
         server.send(500, "text/plain", "unregister failed");
     }
-#ifdef MQTT_HOST
-    unconfigureHomeAssistantDevice(String(addr));
-#endif
 }
 
 void handleList() {
