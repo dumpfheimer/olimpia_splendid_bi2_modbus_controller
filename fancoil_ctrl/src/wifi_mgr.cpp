@@ -1,4 +1,6 @@
-#include "wifi.h"
+// PUBLISHED UNDER CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/
+
+#include "wifi_mgr.h"
 
 #if defined(ESP8266)
 MDNSResponder wifiMgrMdns;
@@ -135,8 +137,6 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 void onOTAEnd(bool success) {
   if (success) {
     ESP.restart();
-  } else {
-    Serial.println("There was an error during OTA update!");
   }
 }
 #endif
@@ -235,6 +235,10 @@ void wifiMgrExpose(XWebServer *wifiMgrServer_) {
     wifiMgrServer->on("/wifiMgr/bssid", bssid);
     wifiMgrServer->on("/wifiMgr/status", status);
     wifiMgrServer->on("/wifiMgr/restart", restart);
+}
+
+XWebServer* wifiMgrGetWebServer() {
+    return wifiMgrServer;
 }
 
 void wifiMgrSetBadRSSI(int8_t rssi) {

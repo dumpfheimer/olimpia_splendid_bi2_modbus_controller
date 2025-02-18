@@ -175,7 +175,7 @@ bool unregisterFancoil(uint8_t unregisterAddress) {
 }
 
 void setupFancoilManager() {
-    EEPROM.begin(512);
+    EEPROM.begin(1024);
     loadFancoils();
 }
 

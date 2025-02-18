@@ -22,6 +22,8 @@ extern HardwareSerial modbusSerial;
 #include "mqtt.h"
 #include "fancoil.h"
 #include "wifi_mgr.h"
+#include "modbus_ascii.h"
+#include "configuration.h"
 
 
 #define DRIVER_ENABLE_PIN D3

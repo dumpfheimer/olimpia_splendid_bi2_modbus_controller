@@ -6,8 +6,8 @@
 #define FANCOIL_CTRL_LOGGING_H
 
 #include "Arduino.h"
+#include "configuration.h"
 
-//#define USE_LOGGING
 #define DEBUG_SERIAL Serial
 
 

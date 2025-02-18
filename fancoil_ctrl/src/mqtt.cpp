@@ -1,6 +1,5 @@
 #include "mqtt.h"
-
-#ifdef MQTT_HOST
+#include "wifi_mgr_eeprom.h"
 
 #define MQTT_USER_BUFFER_SIZE 128
 #define MQTT_PASS_BUFFER_SIZE 128
@@ -404,17 +403,35 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
     }
 }
 
+unsigned long lastConnectTry = 0;
+
 void mqttReconnect() {
-    while (!client.connected()) {
+    if ((millis() - lastConnectTry) > 5000) {
         if (!WiFi.isConnected()) return;
+        lastConnectTry = millis();
         debugPrint("Reconnecting...");
         String lastWillTopic = "fancoil_ctrl/" + clientId + "/online/state";
         lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
-        if (!client.connect(clientIdCharArray, MQTT_USER, MQTT_PASS, topicBuffer, true, true, "OFF")) {
+#ifdef MQTT_USER
+        bool connected = client.connect(clientIdCharArray, MQTT_USER, MQTT_PASS, topicBuffer, true, true, "OFF");
+#else
+        const char* user = wifiMgrGetConfig("MQTT_USER");
+        const char* pass = wifiMgrGetConfig("MQTT_PASS");
+        if (user == nullptr || pass == nullptr) {
+            debugPrintln("No mqtt user and password");
+            return;
+        } else {
+            debugPrintln("MQTT user");
+            debugPrintln(user);
+            debugPrintln("MQTT pass");
+            debugPrintln(pass);
+        }
+
+        bool connected = client.connect(clientIdCharArray, user, pass, topicBuffer, true, true, "OFF");
+#endif
+        if (!connected) {
             debugPrint("failed, rc=");
             debugPrint(client.state());
-            debugPrintln(" retrying in 5 seconds");
-            delay(5000);
         } else {
             debugPrint("success");
             sendHomeAssistantConfiguration();
@@ -431,17 +448,29 @@ void mqttReconnect() {
 }
 
 void setupMqtt() {
+#ifdef MQTT_HOST
     client.setServer(MQTT_HOST, 1883);
-    client.setCallback(mqttHandleMessage);
+#else
+    const char *host = wifiMgrGetConfig("MQTT_HOST");
+    debugPrint("mqtt host: ");
+    debugPrintln(host);
+    if (host != nullptr) {
+        client.setServer(host, 1883);
+#endif
+        client.setCallback(mqttHandleMessage);
 
-    topicBuffer = (char *) malloc(sizeof(char) * TOPIC_BUFFER_SIZE);
-    messageBuffer = (char *) malloc(sizeof(char) * MESSAGE_BUFFER_SIZE);
+        topicBuffer = (char *) malloc(sizeof(char) * TOPIC_BUFFER_SIZE);
+        messageBuffer = (char *) malloc(sizeof(char) * MESSAGE_BUFFER_SIZE);
 
-    clientId = WiFi.macAddress();
-    clientId.replace(":", "-");
-    clientIdCharArray = (char *) malloc(sizeof(char) * (12 + 5));
-    clientId.toCharArray(clientIdCharArray, (12 + 5));
-    client.setBufferSize(MESSAGE_BUFFER_SIZE);
+        clientId = WiFi.macAddress();
+        clientId.replace(":", "-");
+        clientIdCharArray = (char *) malloc(sizeof(char) * (12 + 5));
+        clientId.toCharArray(clientIdCharArray, (12 + 5));
+        client.setBufferSize(MESSAGE_BUFFER_SIZE);
+
+#ifndef MQTT_HOST
+    }
+#endif
 }
 
 void loopMqtt() {
@@ -451,5 +480,3 @@ void loopMqtt() {
         if (stateChanged || (millis() - lastSend) > 30000) sendFancoilStates();
     }
 }
-
-#endif

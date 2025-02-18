@@ -1,28 +1,10 @@
 #include "main.h"
 
-void debugPrint(String s);
-
-void debugPrint(unsigned long l, int i);
-
-void debugPrintln(String s);
-
-void debugPrintln(unsigned long l, int i);
-
 XWebServer server(80);
 
-#include "modbus_ascii.h"
-
-#include "configuration.h"
-
-
-#ifdef MQTT_HOST
-
-void notifyStateChanged();
-
+#ifndef WIFI_SSID
+#include "wifi_mgr_portal.h"
 #endif
-
-
-
 
 #if defined(ESP8266)
 // instantiate ModbusMaster object
@@ -32,8 +14,6 @@ HardwareSerial modbusSerial(1);
 #else
 #error "This hardware is not supported"
 #endif
-
-
 
 void setup() {
     pinMode(READ_ENABLE_PIN, OUTPUT);
@@ -48,19 +28,22 @@ void setup() {
 #if defined(ESP8266)
     modbusSerial.begin(9600, SWSERIAL_7E1);
 #elif defined(ESP32)
-    modbusSerial.begin(9600, SERIAL_7E1);
+    modbusSerial.begin(9600, SERIAL_7E1, -1, -1, true);
 #endif
 
     modbusSerial.setTimeout(500);
 
 
     debugPrintln("Connecting to WiFi..");
+    wifiMgrExpose(&server);
 #ifdef WIFI_SSID
     setupWifi(WIFI_SSID, WIFI_PASSWORD, WIFI_HOST);
 #else
-    setupWifi(kSsid, kPassword, wifiHost);
+    wifiMgrPortalSetup(false);
+    wifiMgrPortalAddConfigEntry("MQTT Host", "MQTT_HOST", PortalConfigEntryType::STRING, false, true);
+    wifiMgrPortalAddConfigEntry("MQTT Username", "MQTT_USER", PortalConfigEntryType::STRING, false, true);
+    wifiMgrPortalAddConfigEntry("MQTT Password", "MQTT_PASS", PortalConfigEntryType::STRING, false, true);
 #endif
-    wifiMgrExpose(&server);
 
     debugPrintln(WiFi.localIP().toString());
 
@@ -70,10 +53,7 @@ void setup() {
     MODBUS_SERIAL.setTimeout(5000);
 
     setupFancoilManager();
-
-#ifdef MQTT_HOST
     setupMqtt();
-#endif
 }
 
 // reading 601-602
@@ -82,6 +62,8 @@ void setup() {
 // Request:   3A 30 31 30 33 30 32 35 38 30 30 30 32 41 30 0D 0A
 // Response:  3A 30 31 30 33 30 34 30 33 45 38 31 33 38 38 37 32 0D 0A
 void loop() {
+    server.handleClient();
+#ifdef WIFI_SSID
     loopWifi();
     server.handleClient();
     loopOTA();
@@ -90,5 +72,13 @@ void loop() {
 
 #ifdef MQTT_HOST
     loopMqtt();
+#endif
+#else
+    if (wifiMgrPortalLoop()) {
+        server.handleClient();
+        loopOTA();
+        loopFancoils(&MODBUS_SERIAL);
+        loopMqtt();
+    }
 #endif
 }
