@@ -1,9 +1,10 @@
 #ifndef CONFIGURATION
 #define CONFIGURATION
 
-static const char* kSsid = "XXX";
-static const char* kPassword = "XXX";
-static const char* wifiHost = "FancoilCtrl";
+#define WIFI_SSID "XXX"
+#define WIFI_PASSWORD "XXX"
+#define WIFI_HOST "FancoilCtrl"
+
 
 #define AMBIENT_TEMPERATURE_TIMEOUT_S 1200 // if defined, the device will turn off after not receiving an ambient temperature after n seconds
 #define USE_LOGGING

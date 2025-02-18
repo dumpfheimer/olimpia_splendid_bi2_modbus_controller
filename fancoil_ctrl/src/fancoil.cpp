@@ -27,10 +27,16 @@ void Fancoil::init(uint8_t addr) {
     absenceConditionForced = AbsenceCondition::NOT_FORCED;
     syncState = SyncState::INVALID;
 
+#ifdef ENABLE_READ_STATE
+    lastReadChangedValues = false;
+#endif
+
     hasValidDesiredState = false;
 
     sendPeriod = 60000;
     readPeriod = 30000;
+    lastRead = 0;
+    lastReadTry = 0;
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
 #endif
@@ -47,6 +53,11 @@ void Fancoil::init(uint8_t addr) {
 #ifdef LOAD_AMBIENT_TEMP
     ambientTemp = 0;
 #endif
+
+    data[0] = 0;
+    data[1] = 0;
+    recData[0] = 0;
+    recData[1] = 0;
 
 }
 
@@ -151,6 +162,22 @@ bool Fancoil::hasWaterFault() {
     return waterFault;
 }
 
+uint8_t Fancoil::getData1() {
+    return data[0];
+}
+
+uint8_t Fancoil::getData2() {
+    return data[1];
+}
+
+uint8_t Fancoil::getRecData1() {
+    return recData[0];
+}
+
+uint8_t Fancoil::getRecData2() {
+    return recData[1];
+}
+
 SyncState Fancoil::getSyncState() {
     return syncState;
 }
@@ -216,8 +243,13 @@ bool Fancoil::wantsToRead() {
     }
     if (syncState == SyncState::INVALID && (millis() - lastRead) > 10000) {
         debugPrintln("read: invalid state");
-        // we want to read if there was an error
-        return true;
+	if (millis() - lastReadTry > 10000) {
+        	// we want to read if there was an error
+        	return true;
+	} else {
+		// do not read too often
+		return false;
+	}
     }
     if ((millis() - lastRead) > readPeriod) {
         debugPrintln("read periodically!");
@@ -242,9 +274,15 @@ PushResult Fancoil::pushState(Stream *stream) {
 
 bool Fancoil::writeTo(Stream *stream) {
     if (!hasValidDesiredState) return false;
-    uint8_t data[2];
 
-    while (isBusy) yield();
+    unsigned long start = millis();
+    unsigned long timeout = 1000;
+    while (isBusy) {
+        if (millis() - start < timeout) {
+            yield();
+	}
+        else return false;
+    }
     isBusy = true;
 
     // data
@@ -270,6 +308,7 @@ bool Fancoil::writeTo(Stream *stream) {
         // always on right now
         data2 = data2 | (1 << 7);
     }
+
     if (speed == FanSpeed::AUTOMATIC) {
         // 00
     } else if (speed == FanSpeed::MIN) {
@@ -307,7 +346,11 @@ bool Fancoil::writeTo(Stream *stream) {
 
     isBusy = false;
     readState(stream);
-    if (successfullWrites == 3) {
+    if (successfullWrites == 3
+#ifdef ENABLE_READ_STATE
+		    && !lastReadChangedValues
+#endif
+		    ) {
         syncState = SyncState::HAPPY;
         lastSend = millis();
         return true;
@@ -317,9 +360,16 @@ bool Fancoil::writeTo(Stream *stream) {
 }
 
 bool Fancoil::readState(Stream *stream) {
+    lastReadTry = millis();
     // read 101, ( and maybe 009 105)
-
-    while (isBusy) yield();
+    unsigned long start = millis();
+    unsigned long timeout = 1000;
+    while (isBusy) {
+        if (millis() - start < timeout) {
+            yield();
+	}
+	else return false;
+    }
     isBusy = true;
 
     IncomingMessage *res = modbusReadRegister(stream, address, 101);
@@ -330,6 +380,8 @@ bool Fancoil::readState(Stream *stream) {
 
         byte data1 = res->data[1];
         byte data2 = res->data[2];
+	recData[0] = data1;
+	recData[1] = data2;
         debugPrintln("successfully read 101: ");
         debugPrintln(data1, BIN);
         debugPrintln(data2, BIN);
@@ -370,7 +422,7 @@ bool Fancoil::readState(Stream *stream) {
             on = true;
         }
 
-        switch (data2 & 0b111) {
+        switch (data2 & 0b11) {
             case 0b11:
                 if (speed != FanSpeed::MAX) lastReadChangedValues = true;
                 speed = FanSpeed::MAX;
@@ -395,7 +447,7 @@ bool Fancoil::readState(Stream *stream) {
             if (i->valid) {
                 if (i->address == address && i->functionCode == 3) {
                     byte data1 = i->data[1];
-                    byte data2 = i->data[2];
+                    //byte data2 = i->data[2];
                     bool isOn = (data1 & 0b10) > 0;
 
                     debugPrint("swing is ");
@@ -517,7 +569,14 @@ bool Fancoil::writeSwingIfNeeded(Stream *stream) {
 }
 
 bool Fancoil::resetWaterTemperatureFault(Stream *stream) {
-    while (isBusy) {}
+    unsigned long start = millis();
+    unsigned long timeout = 1000;
+    while (isBusy) {
+        if (millis() - start < timeout) {
+            yield();
+	}
+        else return false;
+    }
     isBusy = true;
 
     IncomingMessage *i = modbusReadRegister(stream, address, 104, 1);
@@ -525,7 +584,7 @@ bool Fancoil::resetWaterTemperatureFault(Stream *stream) {
         if (i->address == address && i->functionCode == 3) {
             byte data1 = i->data[1];
             byte data2 = i->data[2];
-            bool isFaulty = data2 & 0x01000000 > 0;
+            bool isFaulty = (data2 & 0x01000000) > 0;
 
             if (isFaulty) {
                 data2 = data2 & 0x10111111;

@@ -89,7 +89,6 @@ void printByte(byte b, Stream *stream) {
 IncomingMessage *modbusRead(Stream *stream) {
     preReceive();
     modbusReadCount++;
-    char c = 0;
     long start = millis();
     while ((millis() - start) < readTimeout) {
         if (stream->available()) break;
@@ -119,7 +118,6 @@ IncomingMessage *modbusRead(Stream *stream) {
                     }
                     int dataPos = 0;
                     for (uint8_t convertPos = 0; convertPos < readBufferPos - 1 /* before \r */; convertPos += 2) {
-                        char *limit = &(readBuffer[convertPos + 2]);
                         uint8_t byteValue = convertHexStringToByte(readBuffer[convertPos], readBuffer[convertPos + 1]);
                         if (convertPos == 0) {
                             incomingMessage->address = byteValue;

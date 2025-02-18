@@ -15,6 +15,7 @@
 #include "fancoil.h"
 #include "httpHandlers.h"
 #include "fancoil_manager.h"
+#include <ArduinoJson.h>
 
 void setupMqtt();
 void loopMqtt();

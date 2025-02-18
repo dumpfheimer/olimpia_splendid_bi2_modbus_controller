@@ -5,7 +5,7 @@
 #define MQTT_USER_BUFFER_SIZE 128
 #define MQTT_PASS_BUFFER_SIZE 128
 #define TOPIC_BUFFER_SIZE 128
-#define MESSAGE_BUFFER_SIZE 1024
+#define MESSAGE_BUFFER_SIZE 2048
 
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
@@ -21,6 +21,8 @@ char *mqttPassCharArray;
 boolean stateChanged = false;
 unsigned long lastSend = 0;
 
+JsonDocument doc;
+
 void notifyStateChanged() {
     stateChanged = true;
 }
@@ -33,6 +35,12 @@ void publishHelper(String *publishTopic, String *publishMessage, bool retain) {
 
 void publishHelper(String publishTopic, String publishMessage, bool retain) {
     publishHelper(&publishTopic, &publishMessage, retain);
+}
+
+void sendMessageBufferTo(String publishTopic, bool retain) {
+    String *ptr = &publishTopic;
+    ptr->toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
+    client.publish(topicBuffer, messageBuffer, retain);
 }
 
 void subscribeHelper(String *subscribeTopic) {
@@ -233,12 +241,12 @@ void sendHomeAssistantConfiguration() {
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set");
 
             // ambient temp
-            publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config",
+            publishHelper("homeassistant/number/" + clientId + "-" + addr + "/ambient_temperature/config",
                           "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr +
                           "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr +
                           " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
                           "_ambient_temperature\", " + "\"cmd_t\": \"~/set\", " +
-                          "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                          "\"stat_t\": \"~/state\", \"retain\": \"false\", \"min\": 5, \"max\": 50, \"precision\": 0.1, \"device\": {\"identifiers\": \"fancoil_" +
                           clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
                           "\"}, \"unit_of_meas\": \"°C\"}", true);
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
@@ -278,6 +286,48 @@ void sendHomeAssistantConfiguration() {
                           clientId + "-" + addr + " state\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
                           "_state\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
                           clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
+
+	    // hvac
+            doc["name"] = "Fancoil " + clientId + ":" + addr + "";
+            doc["icon"] = "mdi:home-thermometer-outline";
+            doc["send_if_off"] = "true";
+            doc["unique_id"] = "hvac_" + clientId + "_" + addr;
+            doc["availability_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/state/state";
+            doc["payload_available"] = "online";
+            doc["payload_not_available"] = "offline";
+            doc["mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/set";
+            doc["mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/state";
+            doc["action_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/action/state";
+	    JsonArray modes = doc["modes"].to<JsonArray>();
+	    modes.add("heat");
+	    modes.add("cool");
+	    modes.add("off");
+            //doc["modes"] = ["heat", "cool", "off"];
+            doc["min_temp"] = "15";
+            doc["max_temp"] = "30";
+            doc["precision"] = 0.1;
+            doc["retain"] = "false";
+            doc["current_temperature_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/state";
+            doc["temperature_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set";
+            doc["temperature_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/state";
+            doc["temp_step"] = "0.5";
+            doc["fan_mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set";
+            doc["fan_mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state";
+	    JsonArray fanModes = doc["fan_modes"];
+	    fanModes.add("auto");
+	    fanModes.add("high");
+	    fanModes.add("low");
+	    fanModes.add("night");
+            //doc["fan_modes"] = "auto, high, low, night";
+            JsonObject device  = doc["device"].to<JsonObject>();
+            device["name"] = "Fancoil " + clientId + "-" + addr + "";
+            //device["via_device"] = "Fancoil CTRL";
+            device["identifiers"] = "fancoil_" + clientId + "_" + addr + "";
+	    /*device["model"] = "Bi2 SL Smart 400";
+            device["manufacturer"] = "Olimpia Splendid";*/
+            serializeJson(doc, messageBuffer, MESSAGE_BUFFER_SIZE);
+	    sendMessageBufferTo("homeassistant/climate/" + clientId + "-" + addr + "/config", true);
+	    doc.clear();
 
             sendFancoilState(fancoil);
         } else {
@@ -391,7 +441,7 @@ void setupMqtt() {
     clientId.replace(":", "-");
     clientIdCharArray = (char *) malloc(sizeof(char) * (12 + 5));
     clientId.toCharArray(clientIdCharArray, (12 + 5));
-    client.setBufferSize(500);
+    client.setBufferSize(MESSAGE_BUFFER_SIZE);
 }
 
 void loopMqtt() {

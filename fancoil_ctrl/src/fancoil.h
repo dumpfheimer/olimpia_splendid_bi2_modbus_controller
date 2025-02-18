@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
 
 #include "logging.h"
 #include "modbus_ascii.h"
@@ -58,6 +57,9 @@ private:
     bool forceWrite_ = false;
     unsigned long forceWriteAt = 0;
 
+    uint8_t data[2];
+    uint8_t recData[2];
+
     // the last successful write
     unsigned long lastSend = 0;
     unsigned long sendPeriod = 60000;
@@ -70,6 +72,7 @@ private:
 
     // the last successful read
     unsigned long lastRead = 0;
+    unsigned long lastReadTry = 0;
     unsigned long readPeriod = 40000;
 
     byte communicationTimer = 0;
@@ -131,6 +134,10 @@ public:
     bool writeSwingIfNeeded(Stream *stream);
     bool resetWaterTemperatureFault(Stream* stream);
     void loop(Stream *stream);
+    uint8_t getRecData1();
+    uint8_t getRecData2();
+    uint8_t getData1();
+    uint8_t getData2();
 };
 
 

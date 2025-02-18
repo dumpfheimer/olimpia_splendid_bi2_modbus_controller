@@ -8,7 +8,7 @@ void debugPrintln(String s);
 
 void debugPrintln(unsigned long l, int i);
 
-ESP8266WebServer server(80);
+XWebServer server(80);
 
 #include "modbus_ascii.h"
 
@@ -22,8 +22,17 @@ void notifyStateChanged();
 #endif
 
 
+
+
+#if defined(ESP8266)
 // instantiate ModbusMaster object
 SoftwareSerial modbusSerial(D4, D1, true);
+#elif defined(ESP32)
+HardwareSerial modbusSerial(1);
+#else
+#error "This hardware is not supported"
+#endif
+
 
 
 void setup() {
@@ -36,12 +45,21 @@ void setup() {
     setupModbus();
     setupLogging();
 
+#if defined(ESP8266)
     modbusSerial.begin(9600, SWSERIAL_7E1);
+#elif defined(ESP32)
+    modbusSerial.begin(9600, SERIAL_7E1);
+#endif
+
     modbusSerial.setTimeout(500);
 
 
     debugPrintln("Connecting to WiFi..");
+#ifdef WIFI_SSID
+    setupWifi(WIFI_SSID, WIFI_PASSWORD, WIFI_HOST);
+#else
     setupWifi(kSsid, kPassword, wifiHost);
+#endif
     wifiMgrExpose(&server);
 
     debugPrintln(WiFi.localIP().toString());

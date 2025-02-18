@@ -1,9 +1,5 @@
     #include "httpHandlers.h"
 
-bool isLocked = false;
-long lockRequestedAt = 0;
-long lockTimeout = 10000;
-
 bool isTrue(String str) {
     return str == "true" ||
            str == "True" ||
@@ -20,17 +16,6 @@ uint8_t getAddress() {
         if (server.argName(i) == "address") return strtoul(server.arg(i).c_str(), NULL, 10);
     }
     return 0;
-}
-
-void requestLockBlocking() {
-    while (isLocked && (millis() - lockRequestedAt) < lockTimeout);;
-
-    isLocked = true;
-    lockRequestedAt = millis();
-}
-
-void releaseLock() {
-    isLocked = false;
 }
 
 void handleScript() {
@@ -173,15 +158,31 @@ void handleGet() {
 
         switch (fancoil->getSyncState()) {
             case SyncState::HAPPY:
-                ret += "\"syncState\": \"HAPPY\"";
+                ret += "\"syncState\": \"HAPPY\",";
                 break;
             case SyncState::WRITING:
-                ret += "\"syncState\": \"WRITING\"";
+                ret += "\"syncState\": \"WRITING\",";
                 break;
             default:
-                ret += "\"syncState\": \"INVALID\"";
+                ret += "\"syncState\": \"INVALID\",";
                 break;
         }
+	ret += "\"data\":[";
+	ret += "\"";
+	ret += String(fancoil->getData1(), BIN);
+	ret += "\",";
+	ret += "\"";
+	ret += String(fancoil->getData2(), BIN);
+	ret += "\"";
+	ret += "],";
+	ret += "\"recData\":[";
+	ret += "\"";
+	ret += String(fancoil->getRecData1(), BIN);
+	ret += "\",";
+	ret += "\"";
+	ret += String(fancoil->getRecData2(), BIN);
+	ret += "\"";
+	ret += "]";
 
         ret += "}";
 
@@ -197,7 +198,7 @@ void handleRead() {
         return;
     }
 
-    Fancoil *fancoil = getFancoilByAddress(addr);
+    //Fancoil *fancoil = getFancoilByAddress(addr);
 
     uint16_t reg = server.arg("reg").toDouble();
     uint16_t len = server.arg("len").toDouble();
@@ -223,7 +224,7 @@ void handleWrite() {
         return;
     }
 
-    Fancoil *fancoil = getFancoilByAddress(addr);
+    //Fancoil *fancoil = getFancoilByAddress(addr);
 
     uint16_t reg = server.arg("reg").toDouble();
     uint16_t val = server.arg("val").toDouble();
@@ -502,6 +503,10 @@ void handleSwing() {
   }
 }*/
 
+void handleTest() {
+    server.send(200, "text/plain", "hi");
+}
+
 void setupHttp() {
     server.on("/", handleRoot);
     server.on("/s.js", handleScript);
@@ -510,10 +515,10 @@ void setupHttp() {
     server.on("/write", HTTP_POST, handleWrite);
     server.on("/register", HTTP_POST, handleRegister);
     server.on("/unregister", HTTP_POST, handleUnregister);
-        server.on("/list", handleList);
+    server.on("/list", handleList);
     server.on("/factoryReset", HTTP_POST, handleFactoryReset);
     server.on("/resetWaterTemperatureFault", handleResetWaterTemperatureFault);
-        server.on("/uptime", handleUptime);
+    server.on("/uptime", handleUptime);
 
     server.on("/modbusReadCount", handleModbusReadCount);
     server.on("/modbusReadErrors", handleModbusReadErrors);
@@ -528,6 +533,7 @@ void setupHttp() {
 
     server.on("/set", HTTP_POST, handleSet);
     server.on("/set", HTTP_GET, handleSet);
+    server.on("/test", handleTest);
 
     //server.on("/swing", HTTP_GET, handleSwing);
 
