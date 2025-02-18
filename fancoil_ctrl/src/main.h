@@ -16,7 +16,7 @@
 #include "httpHandlers.h"
 #include "mqtt.h"
 #include "fancoil.h"
-#include "wifi.h"
+#include "wifi_mgr.h"
 
 
 #define DRIVER_ENABLE_PIN D3
