@@ -20,7 +20,6 @@
 void setupMqtt();
 void loopMqtt();
 void sendHomeAssistantConfiguration();
-void unconfigureHomeAssistantDevice(String addr);
 void notifyStateChanged();
 
 #endif
