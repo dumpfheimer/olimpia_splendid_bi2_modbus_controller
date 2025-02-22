@@ -184,75 +184,94 @@ void sendHomeAssistantConfiguration() {
         String addr = String(addr_i);
         Fancoil *fancoil = getFancoilByAddress(addr_i);
         if (fancoil != NULL) {
+            bool sendExtra = wifiMgrGetBoolConfig("HA_XTRA", false);
 
-            // on / off
-            publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/on_off\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " on_off\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_on_off\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/set");
-
-            publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/swing\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " swing\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_swing\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/set");
-
-            //mode
-            publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                          "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"auto\", \"off\"]}", true);
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
-
-            //action
-            publishHelper("homeassistant/select/" + clientId + "-" + addr + "/action/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/action\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_mode\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                          "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"idle\", \"off\"]}", true);
-
-            //fan speed: auto, night, low, high
-            publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " fan speed\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_fan_speed\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                          "\"}, \"options\": [\"auto\", \"low\", \"high\", \"night\"]}", true);
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set");
-
-            // setpoint
-            publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/setpoint\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " setpoint\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_setpoint\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                          "\"}, \"unit_of_meas\": \"°C\"}", true);
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set");
-
-            // ambient temp
-            publishHelper("homeassistant/number/" + clientId + "-" + addr + "/ambient_temperature/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr +
-                          "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                          " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_ambient_temperature\", " + "\"cmd_t\": \"~/set\", " +
-                          "\"stat_t\": \"~/state\", \"retain\": \"false\", \"min\": 5, \"max\": 50, \"precision\": 0.1, \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                          "\"}, \"unit_of_meas\": \"°C\"}", true);
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
+            if (sendExtra) {
+                // on / off
+                publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/on_off\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " on_off\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_on_off\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
+
+                publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/swing\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " swing\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_swing\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
+
+                //mode
+                publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
+                              "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"auto\", \"off\"]}", true);
+
+                //action
+                publishHelper("homeassistant/select/" + clientId + "-" + addr + "/action/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/action\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_mode\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
+                              "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"idle\", \"off\"]}", true);
+
+                //fan speed: auto, night, low, high
+                publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " fan speed\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_fan_speed\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
+                              "\"}, \"options\": [\"auto\", \"low\", \"high\", \"night\"]}", true);
+
+                // setpoint
+                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/setpoint\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " setpoint\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_setpoint\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
+                              "\"}, \"unit_of_meas\": \"°C\"}", true);
+
+                // ambient temp
+                publishHelper("homeassistant/number/" + clientId + "-" + addr + "/ambient_temperature/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr +
+                              "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr +
+                              " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_ambient_temperature\", " + "\"cmd_t\": \"~/set\", " +
+                              "\"stat_t\": \"~/state\", \"retain\": \"false\", \"min\": 5, \"max\": 50, \"precision\": 0.1, \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
+                              "\"}, \"unit_of_meas\": \"°C\"}", true);
 
 #ifdef LOAD_AMBIENT_TEMP
-            // ambient temp sensor
-            publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config",
-            "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_sensor\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient sensor\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_sensor\", " + "\"cmd_t\": \"~/set\", " + "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
+                // ambient temp sensor
+                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config",
+                "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_sensor\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient sensor\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_sensor\", " + "\"cmd_t\": \"~/set\", " + "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
 #else
-            publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
+                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
 #endif
+
+
+                // is consuming water
+                publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " is consuming\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_is_consuming\", \"stat_t\": \"~/state\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
+
+
+                // state: info text
+                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config",
+                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/state\", \"name\": \"Fancoil " +
+                              clientId + "-" + addr + " state\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
+                              "_state\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
+                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
+            }
 
 #ifdef LOAD_WATER_TEMP
             // water temp sensor
@@ -266,22 +285,6 @@ void sendHomeAssistantConfiguration() {
 #else
             publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
 #endif
-
-            // is consuming water
-            publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " is consuming\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_is_consuming\", \"stat_t\": \"~/state\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-
-
-            // state: info text
-            publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/state\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " state\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_state\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-
 	    // hvac
             doc["name"] = "Fancoil " + clientId + ":" + addr + "";
             doc["icon"] = "mdi:home-thermometer-outline";
@@ -293,10 +296,10 @@ void sendHomeAssistantConfiguration() {
             doc["mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/set";
             doc["mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/state";
             doc["action_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/action/state";
-	    JsonArray modes = doc["modes"].to<JsonArray>();
-	    modes.add("heat");
-	    modes.add("cool");
-	    modes.add("off");
+	        JsonArray modes = doc["modes"].to<JsonArray>();
+	        modes.add("heat");
+	        modes.add("cool");
+	        modes.add("off");
             //doc["modes"] = ["heat", "cool", "off"];
             doc["min_temp"] = "15";
             doc["max_temp"] = "30";
@@ -308,21 +311,26 @@ void sendHomeAssistantConfiguration() {
             doc["temp_step"] = "0.5";
             doc["fan_mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set";
             doc["fan_mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state";
-	    JsonArray fanModes = doc["fan_modes"];
-	    fanModes.add("auto");
-	    fanModes.add("high");
-	    fanModes.add("low");
-	    fanModes.add("night");
+	        JsonArray fanModes = doc["fan_modes"];
+	        fanModes.add("auto");
+	        fanModes.add("high");
+	        fanModes.add("low");
+	        fanModes.add("night");
             //doc["fan_modes"] = "auto, high, low, night";
             JsonObject device  = doc["device"].to<JsonObject>();
             device["name"] = "Fancoil " + clientId + "-" + addr + "";
             //device["via_device"] = "Fancoil CTRL";
             device["identifiers"] = "fancoil_" + clientId + "_" + addr + "";
-	    /*device["model"] = "Bi2 SL Smart 400";
-            device["manufacturer"] = "Olimpia Splendid";*/
+
+            const char *manufacturer = wifiMgrGetConfig("HA_MAN");
+            if (manufacturer != nullptr) device["manufacturer"] = manufacturer;
+            const char *model = wifiMgrGetConfig("HA_MOD");
+            if (model != nullptr) device["model"] = model;
+            device["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
+
             serializeJson(doc, messageBuffer, MESSAGE_BUFFER_SIZE);
-	    sendMessageBufferTo("homeassistant/climate/" + clientId + "-" + addr + "/config", true);
-	    doc.clear();
+	        sendMessageBufferTo("homeassistant/climate/" + clientId + "-" + addr + "/config", true);
+	        doc.clear();
 
             sendFancoilState(fancoil);
         } else {

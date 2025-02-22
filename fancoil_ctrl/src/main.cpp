@@ -2,10 +2,6 @@
 
 XWebServer server(80);
 
-#ifndef WIFI_SSID
-#include "wifi_mgr_portal.h"
-#endif
-
 #if defined(ESP8266)
 // instantiate ModbusMaster object
 SoftwareSerial modbusSerial(D4, D1, true);
@@ -39,12 +35,15 @@ void setup() {
 #ifdef WIFI_SSID
     setupWifi(WIFI_SSID, WIFI_PASSWORD, WIFI_HOST);
 #else
-    wifiMgrPortalSetup(false);
+    wifiMgrPortalSetup(false, "FancoilCtrl-", "p0rtal123");
 #endif
 #ifndef MQTT_HOST
     wifiMgrPortalAddConfigEntry("MQTT Host", "MQTT_HOST", PortalConfigEntryType::STRING, false, true);
     wifiMgrPortalAddConfigEntry("MQTT Username", "MQTT_USER", PortalConfigEntryType::STRING, false, true);
-    wifiMgrPortalAddConfigEntry("MQTT Password", "MQTT_PASS", PortalConfigEntryType::STRING, false, true);
+    wifiMgrPortalAddConfigEntry("MQTT Password", "MQTT_PASS", PortalConfigEntryType::STRING, true, true);
+    wifiMgrPortalAddConfigEntry("HA Extra Entities", "HA_XTRA", PortalConfigEntryType::BOOL, false, true);
+    wifiMgrPortalAddConfigEntry("HA Manufacturer", "HA_MAN", PortalConfigEntryType::STRING, false, true);
+    wifiMgrPortalAddConfigEntry("HA Model", "HA_MOD", PortalConfigEntryType::STRING, false, true);
 #endif
 
     debugPrintln(WiFi.localIP().toString());
