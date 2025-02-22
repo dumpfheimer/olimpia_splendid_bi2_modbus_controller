@@ -154,6 +154,30 @@ bool wifiMgrSetConfig(const char* name, const char* value) {
     cacheEntry->valueLen = len;
     return true;
 }
+bool wifiMgrSetConfig(const char* name, const char* value, uint8_t len) {
+    wifiMgrSetupEEPROM();
+    CacheEntry* cacheEntry = getCacheEntryByName(name);
+
+    if (cacheEntry == nullptr) {
+        cacheEntry = nextEmptyCacheEntry();
+        if (cacheEntry == nullptr) return false;
+
+        size_t nameLen = strlen(name);
+        cacheEntry->name = new char[nameLen + 1];
+        if (cacheEntry->name == nullptr) return false;
+        strcpy(cacheEntry->name, name);
+        cacheEntry->nameLen = nameLen;
+    }
+
+    if (cacheEntry->value != nullptr) delete[] cacheEntry->value;
+    cacheEntry->value = new char[len];
+    if (cacheEntry->value == nullptr) return false;
+    for (uint16_t wi = 0; wi < len; wi++) {
+        cacheEntry->value[wi] = (char) value[wi];
+    }
+    cacheEntry->valueLen = len;
+    return true;
+}
 long wifiMgrGetLongConfig(const char* name, long def) {
     long load;
     CacheEntry* cacheEntry = getCacheEntryByName(name);
@@ -173,7 +197,7 @@ bool wifiMgrSetLongConfig(const char* name, long val) {
     tmp[1] = val >> 16 & 0xFF;
     tmp[2] = val >> 8 & 0xFF;
     tmp[3] = val & 0xFF;
-    return wifiMgrSetConfig(name, tmp);
+    return wifiMgrSetConfig(name, tmp, 4);
 }
 unsigned long wifiMgrGetUlongConfig(const char* name, unsigned long def) {
     unsigned long load;
@@ -194,7 +218,7 @@ bool wifiMgrSetUlongConfig(const char* name, unsigned long val) {
     tmp[1] = val >> 16 & 0xFF;
     tmp[2] = val >> 8 & 0xFF;
     tmp[3] = val & 0xFF;
-    return wifiMgrSetConfig(name, tmp);
+    return wifiMgrSetConfig(name, tmp, 4);
 }
 bool wifiMgrGetBoolConfig(const char* name, bool def) {
     CacheEntry* cacheEntry = getCacheEntryByName(name);
@@ -203,8 +227,8 @@ bool wifiMgrGetBoolConfig(const char* name, bool def) {
     }
     return cacheEntry->value[0] != 0;
 }
-bool wifiMgrSetBoolConfig(const char* name, bool def) {
-    char tmp[] = {0};
-    if (def) tmp[0] = 1;
-    return wifiMgrSetConfig(name, tmp);
+bool wifiMgrSetBoolConfig(const char* name, bool val) {
+    char tmp[1] = {0};
+    if (val) tmp[0] = 1;
+    return wifiMgrSetConfig(name, tmp, 1);
 }

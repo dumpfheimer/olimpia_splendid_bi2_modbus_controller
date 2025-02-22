@@ -148,7 +148,7 @@ void sendFancoilStates() {
     lastSend = millis();
 }
 
-void unconfigureHomeAssistantDevice(String addr) {
+void unconfigureHomeAssistantDevice(String addr, bool onlyExtra) {
     // purge configuration
     publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config", "", true);
     publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config", "", true);
@@ -156,10 +156,10 @@ void unconfigureHomeAssistantDevice(String addr) {
     publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config", "", true);
     publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config", "", true);
     publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config", "", true);
-    publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
-    publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
-    publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config", "", true);
-    publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config", "", true);
+    if (!onlyExtra) publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
+    if (!onlyExtra) publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
+    if (!onlyExtra) publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config", "", true);
+    if (!onlyExtra) publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config", "", true);
 }
 
 void sendHomeAssistantConfiguration() {
@@ -271,6 +271,8 @@ void sendHomeAssistantConfiguration() {
                               clientId + "-" + addr + " state\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
                               "_state\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
                               clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
+            } else {
+                unconfigureHomeAssistantDevice(addr, true);
             }
 
 #ifdef LOAD_WATER_TEMP

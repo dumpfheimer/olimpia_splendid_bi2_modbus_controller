@@ -18,7 +18,7 @@
 void setupMqtt();
 void loopMqtt();
 void sendHomeAssistantConfiguration();
-void unconfigureHomeAssistantDevice(String addr);
+void unconfigureHomeAssistantDevice(String addr, bool onlyExtra);
 void notifyStateChanged();
 
 #endif //FANCOIL_CTRL_MQTT_H
