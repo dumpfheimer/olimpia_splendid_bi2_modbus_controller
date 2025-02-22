@@ -47,7 +47,7 @@ private:
     uint8_t address = 0;
 
     bool on = false;
-    bool isBusy = false;
+    volatile bool isBusy = false;
     FanSpeed speed = FanSpeed::AUTOMATIC;
     Mode mode = Mode::COOLING;
     AbsenceCondition absenceConditionForced = AbsenceCondition::NOT_FORCED;
