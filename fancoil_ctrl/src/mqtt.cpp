@@ -13,10 +13,6 @@ String clientId;
 char *topicBuffer;
 char *messageBuffer;
 
-char *clientIdCharArray;
-char *mqttUserCharArray;
-char *mqttPassCharArray;
-
 boolean stateChanged = false;
 unsigned long lastSend = 0;
 
@@ -427,7 +423,7 @@ void mqttReconnect() {
             debugPrintln(pass);
         }
 
-        bool connected = client.connect(clientIdCharArray, user, pass, topicBuffer, true, true, "OFF");
+        bool connected = client.connect(WiFi.getHostname(), user, pass, topicBuffer, true, true, "OFF");
 #endif
         if (!connected) {
             debugPrint("failed, rc=");
@@ -464,8 +460,6 @@ void setupMqtt() {
 
         clientId = WiFi.macAddress();
         clientId.replace(":", "-");
-        clientIdCharArray = (char *) malloc(sizeof(char) * (12 + 5));
-        clientId.toCharArray(clientIdCharArray, (12 + 5));
         client.setBufferSize(MESSAGE_BUFFER_SIZE);
 
 #ifndef MQTT_HOST

@@ -40,6 +40,8 @@ void setup() {
     setupWifi(WIFI_SSID, WIFI_PASSWORD, WIFI_HOST);
 #else
     wifiMgrPortalSetup(false);
+#endif
+#ifndef MQTT_HOST
     wifiMgrPortalAddConfigEntry("MQTT Host", "MQTT_HOST", PortalConfigEntryType::STRING, false, true);
     wifiMgrPortalAddConfigEntry("MQTT Username", "MQTT_USER", PortalConfigEntryType::STRING, false, true);
     wifiMgrPortalAddConfigEntry("MQTT Password", "MQTT_PASS", PortalConfigEntryType::STRING, false, true);
