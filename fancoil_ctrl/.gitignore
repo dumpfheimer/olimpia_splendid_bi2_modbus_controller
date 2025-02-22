@@ -1,4 +1,4 @@
-configuration.h
+my_config.h
 .pio
 .idea
 cmake-build-debug

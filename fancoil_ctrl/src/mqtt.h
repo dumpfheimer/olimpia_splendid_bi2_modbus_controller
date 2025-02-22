@@ -7,8 +7,6 @@
 
 #include "configuration.h"
 
-#ifdef MQTT_HOST
-
 #include "Arduino.h"
 #include <PubSubClient.h>
 #include <WiFiClient.h>
@@ -20,9 +18,7 @@
 void setupMqtt();
 void loopMqtt();
 void sendHomeAssistantConfiguration();
-void unconfigureHomeAssistantDevice(String addr);
+void unconfigureHomeAssistantDevice(String addr, bool onlyExtra);
 void notifyStateChanged();
-
-#endif
 
 #endif //FANCOIL_CTRL_MQTT_H

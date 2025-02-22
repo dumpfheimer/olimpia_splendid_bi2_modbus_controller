@@ -5,6 +5,10 @@
 #ifndef FANCOIL_CTRL_MAIN_H
 #define FANCOIL_CTRL_MAIN_H
 
+#include "configuration.h"
+#include "wifi_mgr.h"
+#include "wifi_mgr_portal.h"
+
 #define MODBUS_SERIAL modbusSerial
 
 #if defined(ESP8266)
@@ -21,7 +25,7 @@ extern HardwareSerial modbusSerial;
 #include "httpHandlers.h"
 #include "mqtt.h"
 #include "fancoil.h"
-#include "wifi_mgr.h"
+#include "modbus_ascii.h"
 
 
 #define DRIVER_ENABLE_PIN D3
