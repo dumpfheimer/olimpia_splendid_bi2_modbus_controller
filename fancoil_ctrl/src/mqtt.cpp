@@ -395,6 +395,11 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
                 f->setSetpoint(msg.toDouble());
             } else if (topicName == "ambient_temperature") {
                 f->setAmbient(msg.toDouble());
+            } else if (topicName == "temps") {
+                double setpoint = msg.substring(0, msg.indexOf(":")).toDouble();
+                double ambient = msg.substring(msg.indexOf(":") + 1).toDouble();
+                f->setAmbient(ambient);
+                f->setSetpoint(setpoint);
             } else {
                 debugPrint("Unknown topicName: " + topicName);
             }
@@ -414,6 +419,8 @@ unsigned long lastConnectTry = 0;
 void mqttReconnect() {
     if ((millis() - lastConnectTry) > 5000) {
         if (!WiFi.isConnected()) return;
+        if (client.connected()) return;
+
         lastConnectTry = millis();
         debugPrint("Reconnecting...");
         String lastWillTopic = "fancoil_ctrl/" + clientId + "/online/state";
