@@ -65,6 +65,6 @@ bool useLogging() {
 }
 
 Stream* getLogger() {
-  return NULL;
+  return nullptr;
 }
 #endif

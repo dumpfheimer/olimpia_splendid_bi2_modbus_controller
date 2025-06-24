@@ -48,7 +48,6 @@ void setup() {
 
     debugPrintln(WiFi.localIP().toString());
 
-    setupOTA();
     setupHttp();
 
     MODBUS_SERIAL.setTimeout(5000);
@@ -67,7 +66,6 @@ void loop() {
 #ifdef WIFI_SSID
     loopWifi();
     server.handleClient();
-    loopOTA();
 
     loopFancoils(&MODBUS_SERIAL);
 
@@ -76,9 +74,9 @@ void loop() {
 #endif
 #else
     if (wifiMgrPortalLoop()) {
-        server.handleClient();
-        loopOTA();
+        yield();
         loopFancoils(&MODBUS_SERIAL);
+        yield();
         loopMqtt();
     }
 #endif

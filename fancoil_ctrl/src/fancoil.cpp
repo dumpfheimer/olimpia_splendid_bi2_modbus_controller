@@ -10,7 +10,7 @@ Fancoil::Fancoil(uint8_t add) {
     init(add);
 }
 
-uint8_t Fancoil::getAddress() {
+uint8_t Fancoil::getAddress() const {
     return address;
 }
 
@@ -62,7 +62,10 @@ void Fancoil::init(uint8_t addr) {
 }
 
 void Fancoil::setOn(bool set) {
-    if (on != set) syncState = SyncState::WRITING;
+    if (on != set) {
+        syncState = SyncState::WRITING;
+        notifyStateChanged();
+    }
     on = set;
 }
 
@@ -70,33 +73,43 @@ void Fancoil::notifyHasValidState() {
     this->hasValidDesiredState = true;
 }
 
-bool Fancoil::isOn() {
+bool Fancoil::isOn() const {
     return on;
 }
 
 void Fancoil::setSwing(bool swingOnSet) {
+    if (swingOn != swingOnSet) {
+        syncState = SyncState::WRITING;
+        notifyStateChanged();
+    }
     swingOn = swingOnSet;
 }
 
-bool Fancoil::isSwingOn() {
+bool Fancoil::isSwingOn() const {
     return swingOn;
 }
 
 void Fancoil::setSpeed(FanSpeed newSpeed) {
-    if (speed != newSpeed) syncState = SyncState::WRITING;
+    if (speed != newSpeed) {
+        syncState = SyncState::WRITING;
+        notifyStateChanged();
+    }
     speed = newSpeed;
 }
 
-FanSpeed Fancoil::getSpeed() {
+FanSpeed Fancoil::getSpeed() const {
     return speed;
 }
 
 void Fancoil::setMode(Mode m) {
-    if (mode != m) syncState = SyncState::WRITING;
+    if (mode != m) {
+        syncState = SyncState::WRITING;
+        notifyStateChanged();
+    }
     mode = m;
 }
 
-Mode Fancoil::getMode() {
+Mode Fancoil::getMode() const {
     return mode;
 }
 
@@ -107,11 +120,14 @@ void Fancoil::setSetpoint(double newSetpoint) {
     uint16_t intVal = newSetpoint * 10;
     newSetpoint = (double) intVal / (double) 10;
 
-    if (setpoint != newSetpoint) syncState = SyncState::WRITING;
+    if (setpoint != newSetpoint) {
+        syncState = SyncState::WRITING;
+        notifyStateChanged();
+    }
     setpoint = newSetpoint;
 }
 
-double Fancoil::getSetpoint() {
+double Fancoil::getSetpoint() const {
     return setpoint;
 }
 
@@ -122,17 +138,20 @@ void Fancoil::setAmbient(double newAmbient) {
     uint16_t intVal = newAmbient * 10;
     newAmbient = (double) intVal / (double) 10;
 
-    if (ambientTemperature != newAmbient) syncState = SyncState::WRITING;
+    if (ambientTemperature != newAmbient) {
+        syncState = SyncState::WRITING;
+        notifyStateChanged();
+    }
     ambientTemperature = newAmbient;
     lastAmbientSet = millis();
 }
 
-double Fancoil::getAmbient() {
+double Fancoil::getAmbient() const {
     return ambientTemperature;
 }
 
 #ifdef LOAD_WATER_TEMP
-double Fancoil::getWaterTemp() {
+double Fancoil::getWaterTemp() const {
   return waterTemp;
 }
 #endif
@@ -142,47 +161,47 @@ double Fancoil::getAmbientTemp() {
 }
 #endif
 
-bool Fancoil::ev1On() {
+bool Fancoil::ev1On() const {
     return ev1;
 }
 
-bool Fancoil::ev2On() {
+bool Fancoil::ev2On() const {
     return ev2;
 }
 
-bool Fancoil::chillerOn() {
+bool Fancoil::chillerOn() const {
     return chiller;
 }
 
-bool Fancoil::boilerOn() {
+bool Fancoil::boilerOn() const {
     return boiler;
 }
 
-bool Fancoil::hasWaterFault() {
+bool Fancoil::hasWaterFault() const {
     return waterFault;
 }
 
-uint8_t Fancoil::getData1() {
+uint8_t Fancoil::getData1() const {
     return data[0];
 }
 
-uint8_t Fancoil::getData2() {
+uint8_t Fancoil::getData2() const {
     return data[1];
 }
 
-uint8_t Fancoil::getRecData1() {
+uint8_t Fancoil::getRecData1() const {
     return recData[0];
 }
 
-uint8_t Fancoil::getRecData2() {
+uint8_t Fancoil::getRecData2() const {
     return recData[1];
 }
 
-SyncState Fancoil::getSyncState() {
+SyncState Fancoil::getSyncState() const {
     return syncState;
 }
 
-bool Fancoil::ambientTemperatureIsValid() {
+bool Fancoil::ambientTemperatureIsValid() const {
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     if ((millis() - lastAmbientSet) < ambientSetTimeout * 1000) {
       return true;
@@ -194,7 +213,7 @@ bool Fancoil::ambientTemperatureIsValid() {
 #endif
 }
 
-bool Fancoil::readTimeout() {
+bool Fancoil::readTimeout() const {
     if ((millis() - lastRead) > 2 * readPeriod) {
         return true;
     } else {
@@ -207,7 +226,7 @@ void Fancoil::forceWrite() {
     forceWriteAt = millis();
 }
 // we do not care about rollover scenarios here
-void Fancoil::forceWrite(unsigned long ms) {
+void Fancoil::forceWrite(const unsigned long ms) {
     forceWrite_ = true;
     forceWriteAt = millis() + ms;
 }
@@ -380,8 +399,8 @@ bool Fancoil::readState(Stream *stream) {
 
         byte data1 = res->data[1];
         byte data2 = res->data[2];
-	recData[0] = data1;
-	recData[1] = data2;
+	    recData[0] = data1;
+	    recData[1] = data2;
         debugPrintln("successfully read 101: ");
         debugPrintln(data1, BIN);
         debugPrintln(data2, BIN);

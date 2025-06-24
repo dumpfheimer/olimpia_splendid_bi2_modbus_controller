@@ -141,9 +141,10 @@ void sendFancoilState(Fancoil *fancoil) {
 void sendFancoilStates() {
     stateChanged = false;
     LinkedFancoilListElement *fancoilLinkedList = getFirstFancoilListElement();
-    while (fancoilLinkedList != NULL && fancoilLinkedList->fancoil != NULL) {
+    while (fancoilLinkedList != nullptr && fancoilLinkedList->fancoil != nullptr) {
         sendFancoilState(fancoilLinkedList->fancoil);
         fancoilLinkedList = fancoilLinkedList->next;
+        yield();
     }
     lastSend = millis();
 }
@@ -183,7 +184,7 @@ void sendHomeAssistantConfiguration() {
     for (uint8_t addr_i = 1; addr_i <= 32; addr_i++) {
         String addr = String(addr_i);
         Fancoil *fancoil = getFancoilByAddress(addr_i);
-        if (fancoil != NULL) {
+        if (fancoil != nullptr) {
             bool sendExtra = wifiMgrGetBoolConfig("HA_XTRA", false);
 
             subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/set");
@@ -404,7 +405,6 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
                 debugPrint("Unknown topicName: " + topicName);
             }
             free(msg_ba);
-            notifyStateChanged();
             f->notifyHasValidState();
             f->forceWrite(100); // wait for 100 before force write to give more mqtt messages time to be received
         } else {

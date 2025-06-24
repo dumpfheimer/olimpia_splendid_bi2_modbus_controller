@@ -12,8 +12,8 @@ bool isTrue(String str) {
 
 uint8_t getAddress() {
     for (uint8_t i = 0; i < server.args(); i++) {
-        if (server.argName(i) == "addr") return strtoul(server.arg(i).c_str(), NULL, 10);
-        if (server.argName(i) == "address") return strtoul(server.arg(i).c_str(), NULL, 10);
+        if (server.argName(i) == "addr") return strtoul(server.arg(i).c_str(), nullptr, 10);
+        if (server.argName(i) == "address") return strtoul(server.arg(i).c_str(), nullptr, 10);
     }
     return 0;
 }
@@ -43,7 +43,7 @@ void handleGet() {
 
     Fancoil *fancoil = getFancoilByAddress(addr);
 
-    if (fancoil == NULL) {
+    if (fancoil == nullptr) {
         server.send(404, "text/plain", "address not registered");
     } else {
         String ret = "{";
@@ -267,7 +267,7 @@ void handleRegister() {
 
     Fancoil *fancoil = getFancoilByAddress(addr);
 
-    if (fancoil != NULL) {
+    if (fancoil != nullptr) {
         server.send(304, "text/plain", "already registered");
         return;
     }
@@ -290,7 +290,7 @@ void handleUnregister() {
 
     Fancoil *fancoil = getFancoilByAddress(addr);
 
-    if (fancoil == NULL) {
+    if (fancoil == nullptr) {
         server.send(500, "text/plain", "address not registered");
         return;
     }
@@ -309,9 +309,9 @@ void handleList() {
     debugPrintln("creating list");
     String ret = "[";
 
-    while (fancoilLinkedList != NULL && fancoilLinkedList->fancoil != NULL) {
+    while (fancoilLinkedList != nullptr && fancoilLinkedList->fancoil != nullptr) {
         ret += String(fancoilLinkedList->fancoil->getAddress());
-        if (fancoilLinkedList->next != NULL) ret += ",";
+        if (fancoilLinkedList->next != nullptr) ret += ",";
         fancoilLinkedList = fancoilLinkedList->next;
     }
     debugPrintln("creating list finished");
@@ -329,8 +329,8 @@ String getValue() {
 }
 
 uint16_t getLength() {
-    if (server.hasArg("len")) return strtoul(server.arg("len").c_str(), NULL, 10);
-    if (server.hasArg("length")) return strtoul(server.arg("length").c_str(), NULL, 10);
+    if (server.hasArg("len")) return strtoul(server.arg("len").c_str(), nullptr, 10);
+    if (server.hasArg("length")) return strtoul(server.arg("length").c_str(), nullptr, 10);
 
     return 0;
 }
@@ -347,7 +347,7 @@ void handleSet() {
     uint8_t addr = getAddress();
 
     Fancoil *fancoil = getFancoilByAddress(addr);
-    if (fancoil == NULL) {
+    if (fancoil == nullptr) {
         server.send(404, "application/json", "{\"error\": \"address not registered\"}");
         return;
     }
@@ -426,10 +426,6 @@ void handleSet() {
     } else {
         server.send(500, "application/json", "{\"error\": \"write failed\"}");
     }
-
-#ifdef MQTT_HOST
-    notifyStateChanged();
-#endif
 }
 
 void handleChangeAddress() {
@@ -489,7 +485,7 @@ void handleSwing() {
   uint8_t addr = getAddress();
 
   Fancoil *fancoil = getFancoilByAddress(addr);
-  if (fancoil == NULL) {
+  if (fancoil == nullptr) {
     server.send(404, "text/plain", "address not registered");
     return;
   }

@@ -57,8 +57,8 @@ private:
     bool forceWrite_ = false;
     unsigned long forceWriteAt = 0;
 
-    uint8_t data[2];
-    uint8_t recData[2];
+    uint8_t data[2]{0};
+    uint8_t recData[2]{0};
 
     // the last successful write
     unsigned long lastSend = 0;
@@ -99,31 +99,31 @@ public:
     bool hasValidDesiredState = false;
 
     Fancoil();
-    Fancoil(uint8_t add);
-    uint8_t getAddress();
+    explicit Fancoil(uint8_t add);
+    [[nodiscard]] uint8_t getAddress() const;
     void init(uint8_t addr);
     void setOn(bool set);
-    bool isOn();
+    [[nodiscard]] bool isOn() const;
     void notifyHasValidState();
     void setSwing(bool swingOnSet);
-    bool isSwingOn();
+    [[nodiscard]] bool isSwingOn() const;
     void setSpeed(FanSpeed newSpeed);
-    FanSpeed getSpeed();
+    [[nodiscard]] FanSpeed getSpeed() const;
     void setMode(Mode m);
-    Mode getMode();
+    [[nodiscard]] Mode getMode() const;
     void setSetpoint(double newSetpoint);
-    double getSetpoint();
+    [[nodiscard]] double getSetpoint() const;
     void setAmbient(double newAmbient);
-    double getAmbient();
-    double getWaterTemp();
-    bool ev1On();
-    bool ev2On();
-    bool chillerOn();
-    bool boilerOn();
-    bool hasWaterFault();
-    SyncState getSyncState();
-    bool ambientTemperatureIsValid();
-    bool readTimeout();
+    [[nodiscard]] double getAmbient() const;
+    [[nodiscard]] double getWaterTemp() const;
+    [[nodiscard]] bool ev1On() const;
+    [[nodiscard]] bool ev2On() const;
+    [[nodiscard]] bool chillerOn() const;
+    [[nodiscard]] bool boilerOn() const;
+    [[nodiscard]] bool hasWaterFault() const;
+    [[nodiscard]] SyncState getSyncState() const;
+    [[nodiscard]] bool ambientTemperatureIsValid() const;
+    [[nodiscard]] bool readTimeout() const;
     void forceWrite();
     void forceWrite(unsigned long ms);
     bool wantsToWrite();
@@ -134,10 +134,10 @@ public:
     bool writeSwingIfNeeded(Stream *stream);
     bool resetWaterTemperatureFault(Stream* stream);
     void loop(Stream *stream);
-    uint8_t getRecData1();
-    uint8_t getRecData2();
-    uint8_t getData1();
-    uint8_t getData2();
+    [[nodiscard]] uint8_t getRecData1() const;
+    [[nodiscard]] uint8_t getRecData2() const;
+    [[nodiscard]] uint8_t getData1() const;
+    [[nodiscard]] uint8_t getData2() const;
 };
 
 

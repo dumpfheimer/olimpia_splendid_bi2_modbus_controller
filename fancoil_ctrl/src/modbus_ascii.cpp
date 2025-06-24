@@ -77,7 +77,7 @@ byte convertHexStringToByte(char char1, char char2) {
     buff[0] = char1;
     buff[1] = char2;
     buff[2] = 0;
-    uint16_t l = strtoul(buff, NULL, 16);
+    uint16_t l = strtoul(buff, nullptr, 16);
     return l;
 }
 

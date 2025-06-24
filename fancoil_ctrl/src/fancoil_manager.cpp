@@ -7,7 +7,7 @@ struct LinkedFancoilListElement *getLastListElement() {
     LinkedFancoilListElement *current;
     current = &firstListElement;
 
-    while (current->next != NULL) {
+    while (current->next != nullptr) {
         current = current->next;
     }
     return current;
@@ -20,34 +20,34 @@ void clearFancoils() {
     // current now is the last element
     // now we iterate back over the list and clear everything
     while (current != &firstListElement) {
-        if (current->fancoil != NULL) free(current->fancoil);
+        if (current->fancoil != nullptr) free(current->fancoil);
         current = current->prev;
         free(current->next);
     }
     debugPrintln("we are at last fancoil");
     DEBUG_SERIAL.flush();
     // handle first element
-    if (current->fancoil != NULL) free(current->fancoil);
-    current->fancoil = NULL;
-    current->next = NULL;
-    current->prev = NULL; // should never have been anything else, but anyway...
+    if (current->fancoil != nullptr) free(current->fancoil);
+    current->fancoil = nullptr;
+    current->next = nullptr;
+    current->prev = nullptr; // should never have been anything else, but anyway...
 }
 
 bool addFancoil(uint8_t address) {
-    if (getFancoilByAddress(address) == NULL) {
+    if (getFancoilByAddress(address) == nullptr) {
         LinkedFancoilListElement *lastEntry = getLastListElement();
 
         LinkedFancoilListElement *newEntry;
 
         // populate first element if not used yet
-        if (lastEntry->fancoil == NULL) newEntry = lastEntry;
+        if (lastEntry->fancoil == nullptr) newEntry = lastEntry;
         else newEntry = (LinkedFancoilListElement *) calloc(1, sizeof(LinkedFancoilListElement));
 
-        if (newEntry == NULL) {
+        if (newEntry == nullptr) {
             return false;
         }
         Fancoil *newFancoil = (Fancoil *) calloc(1, sizeof(Fancoil));
-        if (newFancoil == NULL) {
+        if (newFancoil == nullptr) {
             free(newEntry);
             return false;
         }
@@ -116,7 +116,7 @@ void loadFancoils() {
 
 bool registerFancoil(uint8_t registerAddress) {
     uint8_t tmpAddress;
-    if (getFancoilByAddress(registerAddress) == NULL) {
+    if (getFancoilByAddress(registerAddress) == nullptr) {
         uint8_t check = EEPROM.read(FANCOIL_EEPROM_START_ADDRESS);
         if (check != 0xFC) {
             debugPrintln("EEPROM uninitialized");
@@ -146,7 +146,7 @@ bool registerFancoil(uint8_t registerAddress) {
 
 bool unregisterFancoil(uint8_t unregisterAddress) {
     uint8_t tmpAddress;
-    if (getFancoilByAddress(unregisterAddress) != NULL) {
+    if (getFancoilByAddress(unregisterAddress) != nullptr) {
         uint8_t check = EEPROM.read(FANCOIL_EEPROM_START_ADDRESS);
         if (check != 0xFC) {
             debugPrintln("EEPROM uninitialized");
@@ -183,12 +183,12 @@ Fancoil *getFancoilByAddress(uint8_t addr) {
     LinkedFancoilListElement *current = &firstListElement;
 
     do {
-        if (current != NULL && current->fancoil != NULL && current->fancoil->getAddress() == addr) {
+        if (current != nullptr && current->fancoil != nullptr && current->fancoil->getAddress() == addr) {
             return current->fancoil;
         }
         current = current->next;
-    } while (current != NULL);
-    return NULL;
+    } while (current != nullptr);
+    return nullptr;
 }
 
 struct LinkedFancoilListElement *getFirstFancoilListElement() {
@@ -203,7 +203,7 @@ void loopFancoils(Stream *stream) {
         lastFancoilManagerRun = millis();
         LinkedFancoilListElement *listElement = getFirstFancoilListElement();
         do {
-            if (listElement->fancoil != NULL) listElement->fancoil->loop(stream);
-        } while ((listElement = listElement->next) != NULL);
+            if (listElement->fancoil != nullptr) listElement->fancoil->loop(stream);
+        } while ((listElement = listElement->next) != nullptr);
     }
 }
