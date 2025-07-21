@@ -51,7 +51,12 @@ double IncomingMessage::toTemperature() {
 char readBuffer[INCOMING_MESSAGE_BUFFER_SIZE * 2]{0};
 
 void setupModbus() {
-    incomingMessage = (IncomingMessage *) malloc(sizeof(IncomingMessage));
+    if (incomingMessage == nullptr) {
+        incomingMessage = (IncomingMessage *) malloc(sizeof(IncomingMessage));
+        if (incomingMessage != nullptr) {
+            memset(incomingMessage, 0, sizeof(IncomingMessage));
+        }
+    }
 }
 
 void preTransmission() {
@@ -73,12 +78,18 @@ void postReceive() {
 }
 
 byte convertHexStringToByte(char char1, char char2) {
+    // Validate that the characters are valid hex digits
+    if (!isxdigit(char1) || !isxdigit(char2)) {
+        debugPrintln("Invalid hex character");
+        return 0; // Return 0 for invalid input
+    }
+    
     char buff[3];
     buff[0] = char1;
     buff[1] = char2;
     buff[2] = 0;
     uint16_t l = strtoul(buff, nullptr, 16);
-    return l;
+    return l & 0xFF; // Ensure we only return a byte
 }
 
 void printByte(byte b, Stream *stream) {
@@ -97,7 +108,7 @@ IncomingMessage *modbusRead(Stream *stream) {
     }
 
     if (stream->available()) {
-        int readBufferPos = 0;
+        uint16_t readBufferPos = 0;
         while (stream->available()) {
             lastMessageAt = millis();
             readBuffer[readBufferPos] = stream->read();
@@ -116,16 +127,28 @@ IncomingMessage *modbusRead(Stream *stream) {
                         modbusReadErrors++;
                         return incomingMessage;
                     }
-                    int dataPos = 0;
-                    for (uint8_t convertPos = 0; convertPos < readBufferPos - 1 /* before \r */; convertPos += 2) {
+                    uint16_t dataPos = 0;
+                    for (uint16_t convertPos = 0; convertPos < readBufferPos - 1 /* before \r */; convertPos += 2) {
+                        // Make sure we don't go out of bounds in readBuffer
+                        if (convertPos + 1 >= INCOMING_MESSAGE_BUFFER_SIZE * 2) {
+                            debugPrintln("readBuffer index out of bounds");
+                            break;
+                        }
+                        
                         uint8_t byteValue = convertHexStringToByte(readBuffer[convertPos], readBuffer[convertPos + 1]);
                         if (convertPos == 0) {
                             incomingMessage->address = byteValue;
                         } else if (convertPos == 2) {
                             incomingMessage->functionCode = byteValue;
                         } else {
-                            incomingMessage->data[dataPos] = byteValue;
-                            dataPos++;
+                            // Make sure we don't go out of bounds in data array
+                            if (dataPos < INCOMING_MESSAGE_BUFFER_SIZE) {
+                                incomingMessage->data[dataPos] = byteValue;
+                                dataPos++;
+                            } else {
+                                debugPrintln("data array index out of bounds");
+                                break;
+                            }
                         }
                     }
                     incomingMessage->crc = incomingMessage->data[dataPos - 1];

@@ -12,21 +12,21 @@
 #include "modbus_ascii.h"
 
 enum FanSpeed {
-    AUTOMATIC = 0x00,
-    MIN = 0x01,
-    NIGHT = 0x10,
-    MAX = 0x11
+    AUTOMATIC = 0b00,
+    MIN = 0b01,
+    NIGHT = 0b10,
+    MAX = 0b11
 };
 enum Mode {
-    COOLING = 0x10,
-    HEATING = 0x01,
-    AUTO = 0x00,
-    FAN_ONLY = 0x11
+    COOLING = 0b10,
+    HEATING = 0b01,
+    AUTO = 0b00,
+    FAN_ONLY = 0b11
 };
 enum SyncState {
-    HAPPY = 0x11,
-    WRITING = 0x01,
-    INVALID = 0x10
+    HAPPY = 0b11,
+    WRITING = 0b01,
+    INVALID = 0b10
 };
 enum AbsenceCondition {
     FORCED,
@@ -35,7 +35,7 @@ enum AbsenceCondition {
 enum PushResult {
     SUCCESS = 0b11,
     READ_CHANGED_VALUES = 0b111,
-    WRITE_FAILED = 0x01010001
+    WRITE_FAILED = 0b01010001
 };
 
 extern bool noSwing;

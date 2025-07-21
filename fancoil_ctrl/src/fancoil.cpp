@@ -603,10 +603,10 @@ bool Fancoil::resetWaterTemperatureFault(Stream *stream) {
         if (i->address == address && i->functionCode == 3) {
             byte data1 = i->data[1];
             byte data2 = i->data[2];
-            bool isFaulty = (data2 & 0x01000000) > 0;
+            bool isFaulty = (data2 & 0b01000000) > 0;
 
             if (isFaulty) {
-                data2 = data2 & 0x10111111;
+                data2 = data2 & 0b10111111;
 
                 IncomingMessage *i2 = modbusWriteRegister(stream, address, 104, (data1 << 8) | data2);
                 isBusy = false;
