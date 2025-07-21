@@ -1,11 +1,12 @@
 #include "fancoil_manager.h"
 
 
-LinkedFancoilListElement firstListElement;
+LinkedFancoilListElement firstListElement{};
 
 struct LinkedFancoilListElement *getLastListElement() {
-    LinkedFancoilListElement *current;
-    current = &firstListElement;
+    LinkedFancoilListElement *current = &firstListElement;
+
+    if (current == nullptr) return nullptr;
 
     while (current->next != nullptr) {
         current = current->next;

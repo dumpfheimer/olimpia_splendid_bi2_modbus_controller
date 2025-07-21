@@ -48,7 +48,7 @@ double IncomingMessage::toTemperature() {
     return tmp;
 }
 
-char readBuffer[INCOMING_MESSAGE_BUFFER_SIZE * 2];
+char readBuffer[INCOMING_MESSAGE_BUFFER_SIZE * 2]{0};
 
 void setupModbus() {
     incomingMessage = (IncomingMessage *) malloc(sizeof(IncomingMessage));
