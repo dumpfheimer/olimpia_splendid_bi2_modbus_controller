@@ -1,5 +1,8 @@
 # Olimpia Splendid Bi2 Modbus Controller
 
+## alternative project with home assistant focus:
+https://github.com/r0bb10/ESPHome-Olimpia-Bridge
+
 ## THIS IS WORK IN PROGRESS, PLEASE LET ME KNOW IF THINGS ARE NOT WORKING, BUT DO NOT BLAME ME FOR IT
 
 ### Temporary, crappy HowTo:
