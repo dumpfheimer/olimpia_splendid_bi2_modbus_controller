@@ -1,8 +1,4 @@
 #include "httpHandlers.h"
-#include <FS.h>
-#ifdef ESP32
-#include <SPIFFS.h>
-#endif
 
 bool isTrue(String str) {
     return str == "true" ||
@@ -23,8 +19,8 @@ uint8_t getAddress() {
 }
 
 void handleScript() {
-    if (SPIFFS.exists("/scripts.js")) {
-        File file = SPIFFS.open("/scripts.js", "r");
+    if (LittleFS.exists("/scripts.js")) {
+        File file = LittleFS.open("/scripts.js", "r");
         server.streamFile(file, "application/javascript");
         file.close();
     } else {
@@ -33,8 +29,8 @@ void handleScript() {
 }
 
 void handleStyles() {
-    if (SPIFFS.exists("/styles.css")) {
-        File file = SPIFFS.open("/styles.css", "r");
+    if (LittleFS.exists("/styles.css")) {
+        File file = LittleFS.open("/styles.css", "r");
         server.streamFile(file, "text/css");
         file.close();
     } else {
@@ -418,6 +414,11 @@ void handleResetWaterTemperatureFault() {
 
     Fancoil *fancoil = getFancoilByAddress(addr);
 
+    if (fancoil == nullptr) {
+        server.send(404, "text/plain", "address not registered");
+        return;
+    }
+
     if (fancoil->resetWaterTemperatureFault(&MODBUS_SERIAL)) {
         server.send(200, "text/plain", "ok");
     } else {
@@ -531,23 +532,13 @@ void handleSet() {
     }
 
     if (server.hasArg("ambient")) {
-        double ambient = server.arg("ambient").toDouble();
-        if (ambient < 15) {
-            ambient = 15;
-        }
-        if (ambient > 45) {
-            ambient = 45;
-        }
-        fancoil->setAmbient(ambient);
+        // range is enforced centrally in Fancoil::setAmbient (1-45)
+        fancoil->setAmbient(server.arg("ambient").toDouble());
     }
 
     if (server.hasArg("setpoint")) {
-        double d = server.arg("setpoint").toDouble();
-        if (d < 16 || d > 30) {
-            server.send(500, "application/json", "{\"error\": \"invalid setpoint provided\"}");
-            return;
-        }
-        fancoil->setSetpoint(d);
+        // range is enforced centrally in Fancoil::setSetpoint (15-40)
+        fancoil->setSetpoint(server.arg("setpoint").toDouble());
     }
 
     if (server.hasArg("speed")) {
@@ -644,6 +635,10 @@ void handleModbusReadErrors() {
 
 
 void handleModbusErrorRatio() {
+    if (modbusReadCount == 0) {
+        server.send(200, "text/plain", "0% errors");
+        return;
+    }
     server.send(200, "text/plain", String(modbusReadErrors * 100 / modbusReadCount) + "% errors");
 }
 

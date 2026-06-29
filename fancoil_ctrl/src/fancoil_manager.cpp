@@ -78,7 +78,7 @@ void loadFancoils() {
         debugPrintln(check);
         EEPROM.write(FANCOIL_EEPROM_START_ADDRESS, 0xFC);
         for (int i = FANCOIL_EEPROM_START_ADDRESS + 1;
-             i <= FANCOIL_EEPROM_START_ADDRESS + FANCOIL_EEPROM_LENGTH + 1; i++) {
+             i < FANCOIL_EEPROM_START_ADDRESS + FANCOIL_EEPROM_LENGTH + 1; i++) {
             EEPROM.write(i, 0);
         }
         EEPROM.commit();

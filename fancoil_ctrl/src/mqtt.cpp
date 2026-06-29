@@ -436,8 +436,7 @@ void mqttReconnect() {
         } else {
             debugPrintln("MQTT user");
             debugPrintln(user);
-            debugPrintln("MQTT pass");
-            debugPrintln(pass);
+            // intentionally not logging the MQTT password
         }
 
         bool connected = client.connect(WiFi.getHostname(), user, pass, topicBuffer, true, true, "OFF");

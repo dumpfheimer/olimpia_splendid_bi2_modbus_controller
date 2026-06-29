@@ -37,6 +37,8 @@ void Fancoil::init(uint8_t addr) {
     readPeriod = 30000;
     lastRead = 0;
     lastReadTry = 0;
+    lastAmbientSet = 0;
+    ambientEverSet = false;
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
 #endif
@@ -144,6 +146,7 @@ void Fancoil::setAmbient(double newAmbient) {
     }
     ambientTemperature = newAmbient;
     lastAmbientSet = millis();
+    ambientEverSet = true;
 }
 
 double Fancoil::getAmbient() const {
@@ -203,6 +206,10 @@ SyncState Fancoil::getSyncState() const {
 
 bool Fancoil::ambientTemperatureIsValid() const {
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
+    // never valid until a real reading has been received at least once
+    if (!ambientEverSet) {
+      return false;
+    }
     if ((millis() - lastAmbientSet) < ambientSetTimeout * 1000) {
       return true;
     } else {
@@ -359,13 +366,11 @@ bool Fancoil::writeTo(Stream *stream) {
         successfullWrites++;
     }
 
-    if (!writeSwingIfNeeded(stream)) {
-        successfullWrites--;
-    }
+    bool swingOk = writeSwingIfNeeded(stream);
 
     isBusy = false;
     readState(stream);
-    if (successfullWrites == 3
+    if (successfullWrites == 3 && swingOk
 #ifdef ENABLE_READ_STATE
 		    && !lastReadChangedValues
 #endif
@@ -497,7 +502,7 @@ bool Fancoil::readState(Stream *stream) {
 #ifdef LOAD_WATER_TEMP
         IncomingMessage* waterTempRead = modbusReadRegister(stream, address, 1);
         if (waterTempRead->success()) {
-          waterTemp = (waterTempRead->data[1] << 8 | waterTempRead->data[2]) / 10;
+          waterTemp = (waterTempRead->data[1] << 8 | waterTempRead->data[2]) / 10.0;
         } else {
           debugPrintln("read error");
           isBusy = false;
@@ -508,7 +513,7 @@ bool Fancoil::readState(Stream *stream) {
 #ifdef LOAD_AMBIENT_TEMP
         IncomingMessage* ambientTempRead = modbusReadRegister(stream, address, 0);
         if (ambientTempRead->success()) {
-          ambientTemp = (ambientTempRead->data[1] << 8 | ambientTempRead->data[2]) / 10;
+          ambientTemp = (ambientTempRead->data[1] << 8 | ambientTempRead->data[2]) / 10.0;
         } else {
           debugPrintln("read error");
           isBusy = false;
@@ -568,22 +573,22 @@ bool Fancoil::writeSwingIfNeeded(Stream *stream) {
 
                 IncomingMessage *i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
                 if (!i2->valid) {
-                    server.send(501, "text/plain", "write invalid");
+                    debugPrintln("swing write invalid");
                     return false;
                 }
                 if (i2->address == address && i2->functionCode == 6) {
                     return true;
                 } else {
-                    server.send(501, "text/plain", "write address or function code mismatch");
+                    debugPrintln("swing write address or function code mismatch");
                     return false;
                 }
             }
         } else {
-            server.send(501, "text/plain", "address or function code mismatch");
+            debugPrintln("swing read address or function code mismatch");
             return false;
         }
     } else {
-        server.send(501, "text/plain", "not valid");
+        debugPrintln("swing read not valid");
         return false;
     }
 }
@@ -642,9 +647,13 @@ void Fancoil::loop(Stream *stream) {
 
     // 1
     if (!ambientTemperatureIsValid()) {
-        // ambient temperature is invalid
-        // turn off fancoil, if its running.
-        if (on) {
+        // No valid ambient temperature.
+        // If we have NEVER received one (e.g. we just rebooted), stay completely
+        // silent and leave the fancoil in whatever state it already is - a reboot
+        // should be transparent and must not disturb a running unit.
+        // Only once we HAVE had a valid reading that then went stale do we treat
+        // it as a lost temperature feed and turn the unit off for safety.
+        if (ambientEverSet && on) {
             setOn(false);
             writeTo(stream);
         }

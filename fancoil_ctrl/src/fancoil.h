@@ -64,6 +64,10 @@ private:
 
     // the last receive time
     unsigned long lastAmbientSet = 0;
+    // whether a real ambient temperature has ever been received; until it has,
+    // the value is not valid regardless of timers (avoids treating the boot
+    // default as a fresh reading for the first AMBIENT_TEMPERATURE_TIMEOUT_S)
+    bool ambientEverSet = false;
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     unsigned long ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
 #endif

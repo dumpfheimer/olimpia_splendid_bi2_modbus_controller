@@ -21,6 +21,8 @@ extern HardwareSerial modbusSerial;
 #error "This hardware is not supported"
 #endif
 
+#include <LittleFS.h>
+
 #include "httpHandlers.h"
 #include "mqtt.h"
 #include "fancoil.h"

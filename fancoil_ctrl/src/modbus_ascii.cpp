@@ -1,5 +1,7 @@
 #include "modbus_ascii.h"
 
+#include <new>
+
 #define INCOMING_MESSAGE_BUFFER_SIZE 40
 
 void (*modbusYieldCallback)(void) = nullptr;
@@ -58,10 +60,7 @@ char readBuffer[INCOMING_MESSAGE_BUFFER_SIZE * 2]{0};
 
 void setupModbus() {
     if (incomingMessage == nullptr) {
-        incomingMessage = (IncomingMessage *) malloc(sizeof(IncomingMessage));
-        if (incomingMessage != nullptr) {
-            memset(incomingMessage, 0, sizeof(IncomingMessage));
-        }
+        incomingMessage = new (std::nothrow) IncomingMessage();
     }
 }
 
@@ -157,6 +156,13 @@ IncomingMessage *modbusRead(Stream *stream) {
                                 break;
                             }
                         }
+                    }
+                    if (dataPos == 0) {
+                        debugPrintln("message has no data/crc byte");
+                        incomingMessage->valid = false;
+                        postReceive();
+                        modbusReadErrors++;
+                        return incomingMessage;
                     }
                     incomingMessage->crc = incomingMessage->data[dataPos - 1];
                     incomingMessage->data[dataPos - 1] = 0;

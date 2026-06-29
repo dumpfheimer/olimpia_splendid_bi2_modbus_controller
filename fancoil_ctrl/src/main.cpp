@@ -29,11 +29,11 @@ void setup() {
     setupLogging();
     setupModbus();
     
-    // Initialize SPIFFS
-    if (!SPIFFS.begin()) {
-        debugPrintln("Failed to mount SPIFFS");
+    // Initialize LittleFS
+    if (!LittleFS.begin()) {
+        debugPrintln("Failed to mount LittleFS");
     } else {
-        debugPrintln("SPIFFS mounted successfully");
+        debugPrintln("LittleFS mounted successfully");
     }
 
 #if defined(ESP8266)
