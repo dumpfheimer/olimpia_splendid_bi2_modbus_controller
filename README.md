@@ -72,3 +72,15 @@ NOTE: EVERY fancoil connected to the modbus using the source address will change
 
 Address must be registered. You can register an address by opening http://CONTROLLER_IP/ in a browser, enter the address (int) at the "register address form" and hit submit
 You should unregister unused fancoils, because the controller will try to reach the address periodically unnecessarily otherwise.
+
+
+## Reccommended Configuration
+The fan will stop blowing when the water temperature goes outside the configured range.
+This can be bad because the heat / cold cannot be dissipated from the fancoils when the therme starts heating / cooling.
+It takes some time for the fan to notice the temperature change and the valve to open which can be too long for a domestic heat pump.
+To prevent that, reconfigure the threshold to be absurdly low/high.
+In this case heating with 15° water is allowed, or cooling with 35°.
+ 
+export IP=192.168.X.X
+curl -X POST "http://$IP/write?addr=2&reg=218&val=150" # set minimum water temperature for cooling to 15°
+curl -X POST "http://$IP/write?addr=2&reg=219&val=350" # set minimum water temperature for cooling to 35°

@@ -11,6 +11,14 @@ HardwareSerial modbusSerial(1);
 #error "This hardware is not supported"
 #endif
 
+void loopDuringWifi() {
+    loopFancoils(&MODBUS_SERIAL);
+}
+
+void handleClientDuringModbus() {
+    server.handleClient();
+}
+
 void setup() {
     pinMode(READ_ENABLE_PIN, OUTPUT);
     pinMode(DRIVER_ENABLE_PIN, OUTPUT);
@@ -18,8 +26,15 @@ void setup() {
     digitalWrite(READ_ENABLE_PIN, 1);
     digitalWrite(DRIVER_ENABLE_PIN, 0);
 
-    setupModbus();
     setupLogging();
+    setupModbus();
+    
+    // Initialize SPIFFS
+    if (!SPIFFS.begin()) {
+        debugPrintln("Failed to mount SPIFFS");
+    } else {
+        debugPrintln("SPIFFS mounted successfully");
+    }
 
 #if defined(ESP8266)
     modbusSerial.begin(9600, SWSERIAL_7E1);
@@ -46,13 +61,13 @@ void setup() {
     wifiMgrPortalAddConfigEntry("HA Model", "HA_MOD", PortalConfigEntryType::STRING, false, true);
 #endif
 
-    debugPrintln(WiFi.localIP().toString());
-
     setupHttp();
 
     MODBUS_SERIAL.setTimeout(5000);
 
     setupFancoilManager();
+    setLoopFunction(loopDuringWifi);
+    setModbusYieldCallback(handleClientDuringModbus);
     setupMqtt();
 }
 
@@ -62,8 +77,8 @@ void setup() {
 // Request:   3A 30 31 30 33 30 32 35 38 30 30 30 32 41 30 0D 0A
 // Response:  3A 30 31 30 33 30 34 30 33 45 38 31 33 38 38 37 32 0D 0A
 void loop() {
-    server.handleClient();
 #ifdef WIFI_SSID
+    server.handleClient();
     loopWifi();
     server.handleClient();
 

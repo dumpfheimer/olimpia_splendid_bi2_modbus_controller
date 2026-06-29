@@ -386,8 +386,9 @@ bool Fancoil::readState(Stream *stream) {
     while (isBusy) {
         if (millis() - start < timeout) {
             yield();
-	}
-	else return false;
+	    } else {
+	        return false;
+	    }
     }
     isBusy = true;
 
@@ -655,7 +656,6 @@ void Fancoil::loop(Stream *stream) {
         // read timeout!
         if (!readState(stream)) {
             debugPrintln("Read failed");
-            return;
         }
     }
     if (wantsToWrite()) {

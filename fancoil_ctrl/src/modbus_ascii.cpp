@@ -2,6 +2,12 @@
 
 #define INCOMING_MESSAGE_BUFFER_SIZE 40
 
+void (*modbusYieldCallback)(void) = nullptr;
+
+void setModbusYieldCallback(void (*callback)(void)) {
+    modbusYieldCallback = callback;
+}
+
 unsigned long lastMessageAt = 0;
 unsigned long messageQuietTime = 25; // milliseconds between messages
 unsigned long readTimeout = 500;
@@ -104,6 +110,7 @@ IncomingMessage *modbusRead(Stream *stream) {
     while ((millis() - start) < readTimeout) {
         if (stream->available()) break;
         lastMessageAt = millis();
+        if (modbusYieldCallback) modbusYieldCallback();
         yield();
     }
 
@@ -193,6 +200,7 @@ IncomingMessage *modbusRead(Stream *stream) {
             }
             start = millis();
             while ((millis() - start) < readTimeout) {
+                if (modbusYieldCallback) modbusYieldCallback();
                 yield();
                 if (stream->available()) break;
             }

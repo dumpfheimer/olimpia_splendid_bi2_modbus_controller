@@ -5,10 +5,8 @@
 #ifndef FANCOIL_CTRL_FANCOIL_H
 #define FANCOIL_CTRL_FANCOIL_H
 
-#include <cstdint>
 #include <Arduino.h>
 
-#include "logging.h"
 #include "modbus_ascii.h"
 
 enum FanSpeed {

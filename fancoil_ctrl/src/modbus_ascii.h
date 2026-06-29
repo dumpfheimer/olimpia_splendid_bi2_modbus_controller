@@ -39,6 +39,7 @@ extern char readBuffer[];
 extern IncomingMessage* incomingMessage;
 
 void setupModbus();
+void setModbusYieldCallback(void (*callback)(void));
 void preTransmission();
 void postTransmission();
 void preReceive();

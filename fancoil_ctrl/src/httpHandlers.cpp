@@ -1,4 +1,8 @@
-    #include "httpHandlers.h"
+#include "httpHandlers.h"
+#include <FS.h>
+#ifdef ESP32
+#include <SPIFFS.h>
+#endif
 
 bool isTrue(String str) {
     return str == "true" ||
@@ -19,14 +23,178 @@ uint8_t getAddress() {
 }
 
 void handleScript() {
-    // let used = [0,1,8,9,15,16,101,102,103,104,105,108,198,199,200,201,202,203,204,205,206,207,209,210,211,212,213,215,216,218,219,221,222,224,231,233,235,236,237,238,245,246]
-    server.send(200, "application/javascript",
-                "let quickDebugRegs = [0,1,8,9,15,16,101,102,103,104,105,108,198,199,200,201,202,203,204,205,206,207,209,210,211,212,213,215,216,218,219,221,222,224,231,233,235,236,237,238,245,246];async function load(url, retry) { try { retry = retry || 5; let x = await fetch(url); let t = await x.text(); if (t != null) return t; else throw 'retry'; } catch(e) {return load(url, retry -1);}}; async function loadNr(url, retry) {let x = await load(url, retry); let r = parseInt(x); if (isNaN(r)) return await loadNr(url, (retry || 5) - 1); else return r}; async function loadReg(addr, reg, retry) {if (retry <= 0) return -1; retry = retry || 5; let x = await fetch(\"/read?addr=\" + addr + \"&reg=\" + reg + \"&len=1\"); if (x.status == 200) {let t = await x.text(); if (t != null && t.indexOf('dec: ') > -1) { let valS = t.substr(t.indexOf(\"dec:\") + 5); let val = parseInt(valS); return val; } else return loadReg(addr, reg, retry - 1);} else {return loadReg(addr, reg, retry - 1);}} async function debug(registers) {if (typeof registers === 'undefined') {registers=[];for (let i = 0; i <= 254; i++){registers.append(i)}};let html=\"<table><thead><tr><td>Addr</td><td>Val (dec)<td></tr></thead><tbody>\"; let s = document.getElementById('debugOut'); let e = document.getElementById('debugAddress'); let a = e.value; let ret = {}; for (let i of registers) { s.innerText = 'Loading register ' + i; ret[i] = await loadReg(a, i); html += \"<tr><td>\" + i + \"</td><td>\" + ret[i] + \"</td></tr>\";}; ret['errorRatio'] = await load('/modbusErrorRatio'); ;html +=\"</tbody></table>Base64: \" + btoa(JSON.stringify(ret)); s.innerHTML = html;}");
+    if (SPIFFS.exists("/scripts.js")) {
+        File file = SPIFFS.open("/scripts.js", "r");
+        server.streamFile(file, "application/javascript");
+        file.close();
+    } else {
+        server.send(404, "text/plain", "File not found");
+    }
+}
+
+void handleStyles() {
+    if (SPIFFS.exists("/styles.css")) {
+        File file = SPIFFS.open("/styles.css", "r");
+        server.streamFile(file, "text/css");
+        file.close();
+    } else {
+        server.send(404, "text/plain", "File not found");
+    }
 }
 
 void handleRoot() {
-    server.send(200, "text/html",
-                "<html><head><script src=\"s.js\"></script></head><body><a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\">Github page for help</a></br><form method=\"POST\" action=\"register\"><h3>Register fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"unregister\"><h3>Unregister fancoil</h3><br/><input type=\"number\" min=\"1\" max=\"32\" name=\"addr\"><input type=\"submit\"></form><form method=\"POST\" action=\"changeAddress\"><h3>Change fancoil address</h3><br/>Source Address (factory default is 0)<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"sourceAddress\"><br/>Target Address (1-32):<br/><input type=\"number\" min=\"0\" max=\"32\" name=\"targetAddress\"><br/><input type=\"submit\"></form><h3>Debug</h3>Fan coil address:<br/><input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\"><button onclick=\"debug()\">Debug</button><button onclick=\"debug(quickDebugRegs)\">Quick Debug</button><div id=\"debugOut\"></div><a href=\"/wifiMgr/configure\">WiFi and MQTT config</a></body></html>");
+    String html = "";
+    html.reserve(4096);
+    
+    // HTML header
+    html += "<!DOCTYPE html>";
+    html += "<html lang=\"en\">";
+    html += "<head>";
+    html += "    <meta charset=\"UTF-8\">";
+    html += "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
+    html += "    <title>Fancoil Controller</title>";
+    html += "    <link rel=\"stylesheet\" href=\"/styles.css\">";
+    html += "</head>";
+    html += "<body>";
+    
+    // Header
+    html += "    <div class=\"header\">";
+    html += "        <div class=\"container header-content\">";
+    html += "            <h1>Fancoil Controller</h1>";
+    html += "            <div>";
+    html += "                <a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\" class=\"btn\">GitHub</a>";
+    html += "                <a href=\"/wifiMgr/configure\" class=\"btn\">WiFi & MQTT</a>";
+    html += "            </div>";
+    html += "        </div>";
+    html += "    </div>";
+    
+    // Navigation
+    html += "    <div class=\"nav\">";
+    html += "        <div class=\"container\">";
+    html += "            <ul class=\"nav-list\">";
+    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link active\" data-tab=\"dashboard\">Dashboard</button></li>";
+    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"settings\">Settings</button></li>";
+    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"statistics\">Statistics</button></li>";
+    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"debug\">Debug</button></li>";
+    html += "            </ul>";
+    html += "        </div>";
+    html += "    </div>";
+    
+    // Main container
+    html += "    <div class=\"container mt-2\">";
+    
+    // Messages
+    html += "        <div id=\"error-message\" style=\"display: none;\" class=\"card\">";
+    html += "            <div class=\"card-content\" style=\"background-color: var(--error-color); color: white;\"></div>";
+    html += "        </div>";
+    html += "        <div id=\"success-message\" style=\"display: none;\" class=\"card\">";
+    html += "            <div class=\"card-content\" style=\"background-color: var(--success-color); color: white;\"></div>";
+    html += "        </div>";
+    
+    // Dashboard Tab
+    html += "        <div id=\"dashboard-content\" class=\"tab-content active\">";
+    html += "            <div class=\"loading\"></div>";
+    html += "        </div>";
+    
+    // Settings Tab
+    html += "        <div id=\"settings-content\" class=\"tab-content\">";
+    
+    // Register Fancoil
+    html += "            <div class=\"card mb-2\">";
+    html += "                <div class=\"card-header\">Register Fancoil</div>";
+    html += "                <div class=\"card-content\">";
+    html += "                    <div class=\"form-group\">";
+    html += "                        <label class=\"form-label\">Fancoil Address (1-32)</label>";
+    html += "                        <input type=\"number\" min=\"1\" max=\"32\" id=\"register-address\" class=\"form-control\">";
+    html += "                    </div>";
+    html += "                    <button class=\"btn\" onclick=\"registerFancoil()\">Register</button>";
+    html += "                </div>";
+    html += "            </div>";
+    
+    // Unregister Fancoil
+    html += "            <div class=\"card mb-2\">";
+    html += "                <div class=\"card-header\">Unregister Fancoil</div>";
+    html += "                <div class=\"card-content\">";
+    html += "                    <div class=\"form-group\">";
+    html += "                        <label class=\"form-label\">Fancoil Address (1-32)</label>";
+    html += "                        <input type=\"number\" min=\"1\" max=\"32\" id=\"unregister-address\" class=\"form-control\">";
+    html += "                    </div>";
+    html += "                    <button class=\"btn\" onclick=\"unregisterFancoil()\">Unregister</button>";
+    html += "                </div>";
+    html += "            </div>";
+    
+    // Change Address
+    html += "            <div class=\"card mb-2\">";
+    html += "                <div class=\"card-header\">Change Fancoil Address</div>";
+    html += "                <div class=\"card-content\">";
+    html += "                    <div class=\"form-group\">";
+    html += "                        <label class=\"form-label\">Source Address (factory default is 0)</label>";
+    html += "                        <input type=\"number\" min=\"0\" max=\"32\" id=\"source-address\" class=\"form-control\">";
+    html += "                    </div>";
+    html += "                    <div class=\"form-group\">";
+    html += "                        <label class=\"form-label\">Target Address (1-32)</label>";
+    html += "                        <input type=\"number\" min=\"1\" max=\"32\" id=\"target-address\" class=\"form-control\">";
+    html += "                    </div>";
+    html += "                    <button class=\"btn\" onclick=\"changeFancoilAddress()\">Change Address</button>";
+    html += "                </div>";
+    html += "            </div>";
+    
+    // Refresh Rate
+    html += "            <div class=\"card mb-2\">";
+    html += "                <div class=\"card-header\">Auto Refresh</div>";
+    html += "                <div class=\"card-content\">";
+    html += "                    <div class=\"form-group\">";
+    html += "                        <label class=\"form-label\">Refresh Rate</label>";
+    html += "                        <select id=\"refresh-rate\" class=\"form-select\">";
+    html += "                            <option value=\"5000\">5 seconds</option>";
+    html += "                            <option value=\"10000\" selected>10 seconds</option>";
+    html += "                            <option value=\"30000\">30 seconds</option>";
+    html += "                            <option value=\"60000\">1 minute</option>";
+    html += "                        </select>";
+    html += "                    </div>";
+    html += "                </div>";
+    html += "            </div>";
+    
+    // Factory Reset
+    html += "            <div class=\"card\">";
+    html += "                <div class=\"card-header\">Factory Reset</div>";
+    html += "                <div class=\"card-content\">";
+    html += "                    <p class=\"mb-1\">This will remove all registered fancoils.</p>";
+    html += "                    <button class=\"btn btn-danger\" onclick=\"factoryReset()\">Factory Reset</button>";
+    html += "                </div>";
+    html += "            </div>";
+    html += "        </div>";
+    
+    // Statistics Tab
+    html += "        <div id=\"statistics-content\" class=\"tab-content\">";
+    html += "            <div class=\"loading\"></div>";
+    html += "        </div>";
+    
+    // Debug Tab
+    html += "        <div id=\"debug-content\" class=\"tab-content\">";
+    html += "            <div class=\"card\">";
+    html += "                <div class=\"card-header\">Debug</div>";
+    html += "                <div class=\"card-content\">";
+    html += "                    <div class=\"form-group\">";
+    html += "                        <label class=\"form-label\">Fancoil Address</label>";
+    html += "                        <input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\" class=\"form-control\">";
+    html += "                    </div>";
+    html += "                    <div class=\"btn-group\">";
+    html += "                        <button class=\"btn\" onclick=\"debug()\">Debug</button>";
+    html += "                        <button class=\"btn\" onclick=\"debug(quickDebugRegs)\">Quick Debug</button>";
+    html += "                    </div>";
+    html += "                    <div id=\"debugOut\" class=\"mt-2\"></div>";
+    html += "                </div>";
+    html += "            </div>";
+    html += "        </div>";
+    html += "    </div>";
+    
+    // Footer
+    html += "    <script src=\"/scripts.js\"></script>";
+    html += "</body>";
+    html += "</html>";
+    
+    server.send(200, "text/html", html);
 }
 
 void handleUptime() {
@@ -502,8 +670,12 @@ void handleTest() {
 }
 
 void setupHttp() {
+    // Main routes
     server.on("/", handleRoot);
-    server.on("/s.js", handleScript);
+    server.on("/scripts.js", handleScript);
+    server.on("/styles.css", handleStyles);
+
+    // API routes
     server.on("/get", handleGet);
     server.on("/read", handleRead);
     server.on("/write", HTTP_POST, handleWrite);
@@ -514,24 +686,17 @@ void setupHttp() {
     server.on("/resetWaterTemperatureFault", handleResetWaterTemperatureFault);
     server.on("/uptime", handleUptime);
 
+    // Statistics routes
     server.on("/modbusReadCount", handleModbusReadCount);
     server.on("/modbusReadErrors", handleModbusReadErrors);
     server.on("/modbusErrorRatio", handleModbusErrorRatio);
 
-    //server.on("/setAmbient", HTTP_POST, handleSetAmbient);
-    //server.on("/setSetpoint", HTTP_POST, handleSetSetpoint);
-    //server.on("/setFanSpeed", HTTP_POST, handleSetFanSpeed);
-
-    //server.on("/setOn", HTTP_POST, handleSetOn);
-    //server.on("/setOff", HTTP_POST, handleSetOff);
-
+    // Control routes
     server.on("/set", HTTP_POST, handleSet);
     server.on("/set", HTTP_GET, handleSet);
     server.on("/test", handleTest);
-
-    //server.on("/swing", HTTP_GET, handleSwing);
-
     server.on("/changeAddress", HTTP_POST, handleChangeAddress);
 
-    server.begin();
+    // Start the server
+    //server.begin();
 }
