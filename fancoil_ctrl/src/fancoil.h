@@ -77,7 +77,21 @@ private:
     unsigned long lastReadTry = 0;
     unsigned long readPeriod = 40000;
 
-    byte communicationTimer = 0;
+    // periodic address-collision probe (see checkForCollisions)
+    unsigned long lastCollisionCheck = 0;
+    unsigned long collisionCheckPeriod = 600000; // 10 minutes
+    bool collisionSuspected = false;
+    uint16_t collisionSuspicionCount = 0;
+    bool lastProbeSuspicious = false;
+
+    // backoff for unresponsive units (see loop): after 3 consecutive comm
+    // failures the unit is only probed once per backoffPeriod
+    uint8_t consecutiveFailures = 0;
+    unsigned long lastCommAttempt = 0;
+    unsigned long backoffPeriod = 30000;
+
+    void noteCommResult(bool ok);
+
     bool swingOn = true;
     bool swingReadOnce = false;
     bool ev1 = false;
@@ -135,6 +149,10 @@ public:
     bool readState(Stream *stream);
     bool writeSwingIfNeeded(Stream *stream);
     bool resetWaterTemperatureFault(Stream* stream);
+    bool checkForCollisions(Stream *stream);
+    [[nodiscard]] bool isCollisionSuspected() const;
+    [[nodiscard]] uint16_t getCollisionSuspicionCount() const;
+    [[nodiscard]] uint8_t getConsecutiveFailures() const;
     void loop(Stream *stream);
     [[nodiscard]] uint8_t getRecData1() const;
     [[nodiscard]] uint8_t getRecData2() const;

@@ -17,6 +17,12 @@ extern unsigned long messageQuietTime; // milliseconds between messages
 extern unsigned long readTimeout;
 extern unsigned long modbusReadErrors;
 extern unsigned long modbusReadCount;
+extern volatile bool modbusBusy;
+// collision probing: while lingerAfterResponse is > 0, modbusRead keeps the
+// receiver open that many ms after a complete response; any bytes arriving in
+// that window are a second responder answering out of turn
+extern unsigned long lingerAfterResponse;
+extern unsigned long modbusCollisionSuspicions;
 
 
 class IncomingMessage {

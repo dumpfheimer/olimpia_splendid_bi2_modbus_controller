@@ -39,10 +39,17 @@ void Fancoil::init(uint8_t addr) {
     lastReadTry = 0;
     lastAmbientSet = 0;
     ambientEverSet = false;
+    lastCollisionCheck = 0;
+    collisionCheckPeriod = 600000;
+    collisionSuspected = false;
+    collisionSuspicionCount = 0;
+    lastProbeSuspicious = false;
+    consecutiveFailures = 0;
+    lastCommAttempt = 0;
+    backoffPeriod = 30000;
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
 #endif
-    communicationTimer = 0;
 
     ev1 = false;
     ev2 = false;
@@ -298,17 +305,28 @@ PushResult Fancoil::pushState(Stream *stream) {
     return PushResult::SUCCESS;
 }
 
+// called at every comm-determined exit of readState/writeTo (not at the
+// try-lock or no-desired-state bounces, which say nothing about the unit)
+void Fancoil::noteCommResult(bool ok) {
+    lastCommAttempt = millis();
+    if (ok) {
+        consecutiveFailures = 0;
+    } else if (consecutiveFailures < 255) {
+        consecutiveFailures++;
+    }
+}
+
+uint8_t Fancoil::getConsecutiveFailures() const {
+    return consecutiveFailures;
+}
+
 bool Fancoil::writeTo(Stream *stream) {
     if (!hasValidDesiredState) return false;
 
-    unsigned long start = millis();
-    unsigned long timeout = 1000;
-    while (isBusy) {
-        if (millis() - start < timeout) {
-            yield();
-	}
-        else return false;
-    }
+    // try-lock: if this fancoil is already mid-transaction we got here
+    // re-entrantly (the holder is suspended above us on the stack and cannot
+    // release until we return), so waiting would only deadlock until timeout.
+    if (isBusy) return false;
     isBusy = true;
 
     // data
@@ -325,8 +343,14 @@ bool Fancoil::writeTo(Stream *stream) {
     if (absenceConditionForced) {
         //data1 = data1 | (1 << 4);
     }
-    data1 = data1 | communicationTimer;
-    // communication timer?!
+    // The low nibble of data1 is the unit's communication watchdog: minutes
+    // without a master write before the unit switches itself off. Armed with
+    // a DELIBERATE constant, never echoed back from reads (a misattributed
+    // read once armed it with a garbage 1-2 minute fuse). Writes flow every
+    // 60s and continue through WiFi outages, so only a dead controller or a
+    // unit that lost its address goes unwritten this long - and exactly
+    // those units should shut themselves off.
+    data1 = data1 | (FANCOIL_COMM_WATCHDOG_MINUTES & 0x0F);
 
     // data
     uint8_t data2 = 0;
@@ -377,8 +401,10 @@ bool Fancoil::writeTo(Stream *stream) {
 		    ) {
         syncState = SyncState::HAPPY;
         lastSend = millis();
+        noteCommResult(true);
         return true;
     } else {
+        noteCommResult(false);
         return false;
     }
 }
@@ -386,15 +412,9 @@ bool Fancoil::writeTo(Stream *stream) {
 bool Fancoil::readState(Stream *stream) {
     lastReadTry = millis();
     // read 101, ( and maybe 009 105)
-    unsigned long start = millis();
-    unsigned long timeout = 1000;
-    while (isBusy) {
-        if (millis() - start < timeout) {
-            yield();
-	    } else {
-	        return false;
-	    }
-    }
+    // try-lock: a busy fancoil means re-entrancy, and the holder is suspended
+    // above us on the stack - waiting can never clear it, so bounce.
+    if (isBusy) return false;
     isBusy = true;
 
     IncomingMessage *res = modbusReadRegister(stream, address, 101);
@@ -411,7 +431,6 @@ bool Fancoil::readState(Stream *stream) {
         debugPrintln(data1, BIN);
         debugPrintln(data2, BIN);
 
-        communicationTimer = data1 & 0x0F;
 
 #ifdef ENABLE_READ_STATE
 
@@ -544,10 +563,12 @@ bool Fancoil::readState(Stream *stream) {
 #endif
 
         isBusy = false;
+        noteCommResult(true);
         return true;
     } else {
         debugPrintln("read error");
         isBusy = false;
+        noteCommResult(false);
         return false;
     }
 }
@@ -594,14 +615,9 @@ bool Fancoil::writeSwingIfNeeded(Stream *stream) {
 }
 
 bool Fancoil::resetWaterTemperatureFault(Stream *stream) {
-    unsigned long start = millis();
-    unsigned long timeout = 1000;
-    while (isBusy) {
-        if (millis() - start < timeout) {
-            yield();
-	}
-        else return false;
-    }
+    // try-lock: a busy fancoil means re-entrancy, and the holder is suspended
+    // above us on the stack - waiting can never clear it, so bounce.
+    if (isBusy) return false;
     isBusy = true;
 
     IncomingMessage *i = modbusReadRegister(stream, address, 104, 1);
@@ -636,8 +652,93 @@ bool Fancoil::resetWaterTemperatureFault(Stream *stream) {
     return false;
 }
 
+// Detects a second unit sharing this address, from 5 rapid reads of the
+// current fan speed (register 16, RPM) with the post-response linger enabled.
+// Identical boards answer the same request bit-synchronously (deterministic
+// response latency; crystal drift over ~20ms is microseconds, far below the
+// 104us bit time), so two responses carrying IDENTICAL data merge into one
+// clean frame - which is why probing the water temperature failed: both units
+// sit on the same water loop and report the same value. Three signals:
+// 1. stray bytes after a complete response = a second, slower responder
+// 2. failed reads = two merged responses carrying DIFFERENT data (two real
+//    motors never spin at identical RPM, and synchronized drivers that
+//    disagree on a bit produce contention garbage)
+// 3. RPM spread across the reads = the responders alternate cleanly
+// A single suspicious probe only counts; the badge latches on two consecutive
+// suspicious probes, so a coincidental WiFi-scan corruption burst or a
+// legitimate fan ramp-up during one probe cannot false-latch it.
+bool Fancoil::checkForCollisions(Stream *stream) {
+    if (isBusy) return false;
+    isBusy = true;
+
+    lingerAfterResponse = 50;
+    unsigned long suspicionsBefore = modbusCollisionSuspicions;
+
+    uint16_t minVal = 0xFFFF;
+    uint16_t maxVal = 0;
+    uint8_t validReads = 0;
+    uint8_t failedReads = 0;
+
+    for (uint8_t i = 0; i < 5; i++) {
+        IncomingMessage *res = modbusReadRegisterI(stream, address, 16, 1);
+        if (res->success()) {
+            uint16_t val = res->data[1] << 8 | res->data[2];
+            if (val < minVal) minVal = val;
+            if (val > maxVal) maxVal = val;
+            validReads++;
+        } else {
+            failedReads++;
+        }
+    }
+
+    lingerAfterResponse = 0;
+    isBusy = false;
+
+    bool strayResponder = modbusCollisionSuspicions > suspicionsBefore;
+    bool contentionErrors = failedReads >= 2;
+    bool rpmSpread = validReads >= 2 && (maxVal - minVal) > 50;
+
+    bool suspicious = strayResponder || contentionErrors || rpmSpread;
+    if (suspicious) {
+        collisionSuspicionCount++;
+        if (lastProbeSuspicious) {
+            collisionSuspected = true;
+            debugPrint("address collision suspected on ");
+            debugPrintln(address);
+        }
+    }
+    lastProbeSuspicious = suspicious;
+    return suspicious;
+}
+
+bool Fancoil::isCollisionSuspected() const {
+    return collisionSuspected;
+}
+
+uint16_t Fancoil::getCollisionSuspicionCount() const {
+    return collisionSuspicionCount;
+}
+
 void Fancoil::loop(Stream *stream) {
     debugPrintln("loop");
+    // back off a unit that repeatedly fails to answer: every timed-out
+    // transaction blocks the main loop for up to a second, so hammering a
+    // dead unit every pass monopolizes the bus, delays WiFi/MQTT servicing
+    // and floods the error counters. Probe with a single read per backoff
+    // period instead; one success resumes normal operation immediately.
+    if (consecutiveFailures >= 3) {
+        if ((millis() - lastCommAttempt) < backoffPeriod) return;
+        readState(stream);
+        return;
+    }
+    // only probe a unit that has answered recently: probing a vacant or dead
+    // address is 5 blocking timeouts (~2.5s of frozen loop) for zero
+    // information. Also skips the probe at boot until the first successful
+    // read proves the unit is reachable.
+    if (!readTimeout() && ((millis() - lastCollisionCheck) > collisionCheckPeriod || lastCollisionCheck == 0)) {
+        lastCollisionCheck = millis();
+        checkForCollisions(stream);
+    }
     // 1. check if values have been received over network recently
     // 2 if not, disconnect, break
     // 3. check if fancoil is connected

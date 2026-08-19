@@ -10,5 +10,13 @@
 #include "my_config.h"
 #endif
 
+// minutes without a master write before a fancoil switches itself off
+// (register 101 comm-watchdog nibble; 0 = disabled, max 15). Protects against
+// a dead controller and against units that lose their address (fallback to 1)
+// and silently stop receiving writes.
+#ifndef FANCOIL_COMM_WATCHDOG_MINUTES
+#define FANCOIL_COMM_WATCHDOG_MINUTES 15
+#endif
+
 
 #endif

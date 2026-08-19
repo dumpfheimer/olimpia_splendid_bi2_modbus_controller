@@ -18,6 +18,17 @@ unsigned long modbusReadCount = 0;
 
 IncomingMessage* incomingMessage;
 
+// global bus lock: true while a transaction owns the RS485 bus.
+// Because the modbus wait loop yields to the web server, an HTTP handler can
+// re-enter the bus mid-transaction; this flag makes such a re-entrant call
+// bounce instead of interleaving frames or clobbering the shared
+// incomingMessage buffer.
+volatile bool modbusBusy = false;
+// sentinel returned to a re-entrant caller: always invalid, and never written
+// to by modbusRead, so bouncing cannot corrupt the suspended outer
+// transaction's buffer.
+static IncomingMessage busyMessage;
+
 bool IncomingMessage::crcIsValid() {
     uint16_t checksum = 0;
     checksum += address;
@@ -102,9 +113,41 @@ void printByte(byte b, Stream *stream) {
     stream->print(b & 0xF, HEX);
 }
 
+// total time budget for one response, no matter what arrives on the wire. A
+// complete valid frame takes well under a second; without this cap, line
+// noise arriving in sub-500ms intervals keeps the byte loop alive forever,
+// starving the WiFi/MQTT servicing that only runs between transactions.
+unsigned long transactionDeadline = 2000;
+
+unsigned long lingerAfterResponse = 0;
+unsigned long modbusCollisionSuspicions = 0;
+
+// after a complete response, optionally keep the receiver open to catch a
+// second unit answering the same request a few ms later (address collision).
+// Only active during collision probes (lingerAfterResponse > 0) so normal
+// transactions pay no extra bus time.
+static void lingerForStrays(Stream *stream) {
+    if (lingerAfterResponse == 0) return;
+    unsigned long lingerStart = millis();
+    uint16_t strays = 0;
+    while ((millis() - lingerStart) < lingerAfterResponse) {
+        if (stream->available()) {
+            stream->read();
+            strays++;
+        }
+        yield();
+    }
+    if (strays > 0) modbusCollisionSuspicions++;
+}
+
 IncomingMessage *modbusRead(Stream *stream) {
     preReceive();
     modbusReadCount++;
+    // the shared buffer still holds the previous transaction's result;
+    // invalidate it up front so no abort path (deadline, buffer overflow,
+    // short frame) can hand stale data to the caller as a fresh success
+    incomingMessage->valid = false;
+    unsigned long transactionStart = millis();
     long start = millis();
     while ((millis() - start) < readTimeout) {
         if (stream->available()) break;
@@ -116,6 +159,12 @@ IncomingMessage *modbusRead(Stream *stream) {
     if (stream->available()) {
         uint16_t readBufferPos = 0;
         while (stream->available()) {
+            if ((millis() - transactionStart) > transactionDeadline) {
+                debugPrintln("transaction deadline exceeded");
+                postReceive();
+                modbusReadErrors++;
+                return incomingMessage;
+            }
             lastMessageAt = millis();
             readBuffer[readBufferPos] = stream->read();
             if (readBuffer[readBufferPos] == ':') {
@@ -184,6 +233,7 @@ IncomingMessage *modbusRead(Stream *stream) {
                     if (!incomingMessage->crcIsValid()) {
                         debugPrintln("CRC is invalid");
                         incomingMessage->valid = false;
+                        lingerForStrays(stream);
                         postReceive();
                         modbusReadErrors++;
                         return incomingMessage;
@@ -195,6 +245,7 @@ IncomingMessage *modbusRead(Stream *stream) {
                     } else {
                         incomingMessage->isError = false;
                     }
+                    lingerForStrays(stream);
                     postReceive();
                     return incomingMessage;
                 }
@@ -227,6 +278,14 @@ IncomingMessage *modbusRead(Stream *stream) {
 }
 
 IncomingMessage *modbusWrite(Stream *stream, byte address, byte functionCode, byte binaryMsg[], uint8_t length) {
+    if (modbusBusy) {
+        // the bus is already owned by a transaction higher up the call stack
+        // (we reached here re-entrantly via the modbus yield callback); bounce
+        // immediately rather than interleaving on the wire.
+        return &busyMessage;
+    }
+    modbusBusy = true;
+
     uint16_t checksum = 0;
     checksum += address;
     checksum += functionCode;
@@ -241,6 +300,11 @@ IncomingMessage *modbusWrite(Stream *stream, byte address, byte functionCode, by
 
     while ((millis() - lastMessageAt) < messageQuietTime) yield();
     lastMessageAt = millis();
+
+    // discard unconsumed bytes from an earlier transaction (e.g. a response
+    // that arrived after its read had already timed out) so they cannot be
+    // parsed as this transaction's response
+    while (stream->available()) stream->read();
 
     preTransmission();
 
@@ -276,6 +340,38 @@ IncomingMessage *modbusWrite(Stream *stream, byte address, byte functionCode, by
 
     debugPrintln("Waiting for response");
     IncomingMessage *result = modbusRead(stream);
+
+    // A frame carries no reference to the request it answers; the only thing
+    // tying a response to a request is timing. A delayed response to an
+    // earlier request (same bus, different device or register) passes the LRC
+    // check and would be parsed as this transaction's data, so reject any
+    // response whose envelope does not match what we just asked.
+    if (result->valid) {
+        if (result->address != address || (result->functionCode & 0b01111111) != functionCode) {
+            debugPrintln("response envelope does not match request, discarding");
+            result->valid = false;
+            modbusReadErrors++;
+        } else if (!result->isError && length == 4) {
+            if (functionCode == 0x03) {
+                // response to "read n registers" must carry exactly 2n data
+                // bytes, announced in its first byte
+                uint8_t expectedByteCount = binaryMsg[3] * 2;
+                if (result->data[0] != expectedByteCount || result->dataLength != expectedByteCount + 1) {
+                    debugPrintln("response length does not match request, discarding");
+                    result->valid = false;
+                    modbusReadErrors++;
+                }
+            } else if (functionCode == 0x06) {
+                // response to "write register" echoes the register address
+                if (result->dataLength != 4 || result->data[0] != binaryMsg[0] || result->data[1] != binaryMsg[1]) {
+                    debugPrintln("write echo does not match request, discarding");
+                    result->valid = false;
+                    modbusReadErrors++;
+                }
+            }
+        }
+    }
+
     if (!result->valid) {
         // no valid message received
         debugPrintln("no valid message received");
@@ -287,6 +383,7 @@ IncomingMessage *modbusWrite(Stream *stream, byte address, byte functionCode, by
     } else {
         debugPrintln("error received");
     }
+    modbusBusy = false;
     return result;
 }
 
@@ -304,7 +401,9 @@ IncomingMessage *modbusReadRegisterI(Stream *stream, byte address, uint16_t regi
 
 IncomingMessage *modbusReadRegister(Stream *stream, byte address, uint16_t registe, uint8_t count, uint8_t retry) {
     IncomingMessage *i = modbusReadRegisterI(stream, address, registe, count);
-    if (i->valid) {
+    if (i->valid || i == &busyMessage) {
+        // a busy bounce won't clear while we are above the lock holder on the
+        // call stack, so retrying is pointless.
         return i;
     } else if (retry > 0) {
         return modbusReadRegister(stream, address, registe, count, retry - 1);
@@ -336,7 +435,9 @@ IncomingMessage *modbusWriteRegisterI(Stream *stream, byte address, uint16_t reg
 
 IncomingMessage *modbusWriteRegister(Stream *stream, byte address, uint16_t registe, uint16_t data, uint8_t retry) {
     IncomingMessage *i = modbusWriteRegisterI(stream, address, registe, data);
-    if (i->valid) {
+    if (i->valid || i == &busyMessage) {
+        // a busy bounce won't clear while we are above the lock holder on the
+        // call stack, so retrying is pointless.
         return i;
     } else if (retry > 0) {
         return modbusWriteRegister(stream, address, registe, data, retry - 1);

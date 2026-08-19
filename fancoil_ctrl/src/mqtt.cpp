@@ -16,6 +16,19 @@ char *messageBuffer;
 boolean stateChanged = false;
 unsigned long lastSend = 0;
 
+// Discovery configs are retained by the broker, so they only need publishing
+// once per boot (or when the fancoil registry changes). Re-publishing the
+// full burst (~17 retained ~1KB messages per fancoil, faster than the broker
+// ACKs them) on every reconnect piled up several KB of in-flight TCP data on
+// the heap - measured as a 3.6KB free-heap low-water mark - exactly when
+// reassociation needs memory most. Subscriptions, by contrast, die with the
+// MQTT session and must be redone on every reconnect.
+bool discoveryPending = true;
+
+void mqttRequestDiscovery() {
+    discoveryPending = true;
+}
+
 JsonDocument doc;
 
 void notifyStateChanged() {
@@ -163,6 +176,23 @@ void unconfigureHomeAssistantDevice(String addr, bool onlyExtra) {
     if (!onlyExtra) publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config", "", true);
 }
 
+// (re)subscribe to all fancoils' command topics - required on every MQTT
+// (re)connect, since subscriptions are per-session
+void subscribeFancoilTopics() {
+    if (!client.connected()) return;
+    LinkedFancoilListElement *e = getFirstFancoilListElement();
+    while (e != nullptr && e->fancoil != nullptr) {
+        String addr = String(e->fancoil->getAddress());
+        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/set");
+        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/set");
+        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
+        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set");
+        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set");
+        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
+        e = e->next;
+    }
+}
+
 void sendHomeAssistantConfiguration() {
     if (!client.connected()) return;
 
@@ -187,12 +217,6 @@ void sendHomeAssistantConfiguration() {
         if (fancoil != nullptr) {
             bool sendExtra = wifiMgrGetBoolConfig("HA_XTRA", false);
 
-            subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/set");
-            subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/set");
-            subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
-            subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set");
-            subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set");
-            subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
             if (sendExtra) {
                 // on / off
                 publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config",
@@ -336,6 +360,12 @@ void sendHomeAssistantConfiguration() {
 	        doc.clear();
 
             sendFancoilState(fancoil);
+
+            // let the broker ACK the burst before the next fancoil's configs,
+            // so in-flight TCP data doesn't accumulate on the heap
+            client.loop();
+            delay(20);
+            client.loop();
         } else {
         }
     }
@@ -405,7 +435,14 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
                 debugPrint("Unknown topicName: " + topicName);
             }
             free(msg_ba);
-            f->notifyHasValidState();
+            // Only messages that carry the on/off intent may validate the
+            // desired state for writing. After a reboot the desired state is
+            // a factory default (off); if a mere ambient/setpoint update could
+            // mark it valid, the first write after boot would switch off a
+            // running unit before the real mode/on_off command is parsed.
+            if (topicName == "on_off" || topicName == "mode") {
+                f->notifyHasValidState();
+            }
             f->forceWrite(100); // wait for 100 before force write to give more mqtt messages time to be received
         } else {
             debugPrint("No fancoil with address ");
@@ -446,7 +483,7 @@ void mqttReconnect() {
             debugPrint(client.state());
         } else {
             debugPrint("success");
-            sendHomeAssistantConfiguration();
+            subscribeFancoilTopics();
             lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
             client.publish(topicBuffer, "ON", true);
 
@@ -459,6 +496,16 @@ void mqttReconnect() {
     }
 }
 
+bool mqttConfigured = false;
+
+bool mqttIsConfigured() {
+    return mqttConfigured;
+}
+
+bool mqttIsConnected() {
+    return client.connected();
+}
+
 void setupMqtt() {
 #ifdef MQTT_HOST
     client.setServer(MQTT_HOST, 1883);
@@ -469,6 +516,7 @@ void setupMqtt() {
     if (host != nullptr) {
         client.setServer(host, 1883);
 #endif
+        mqttConfigured = true;
         client.setCallback(mqttHandleMessage);
 
         topicBuffer = (char *) malloc(sizeof(char) * TOPIC_BUFFER_SIZE);
@@ -486,7 +534,21 @@ void setupMqtt() {
 void loopMqtt() {
     mqttReconnect();
     if (client.connected()) {
-        client.loop();
+        // client.loop() dispatches at most one incoming packet per call, and
+        // a full fancoil pass (with blocking modbus transactions) runs between
+        // loopMqtt() calls. Drain the entire burst here so the fancoil state
+        // machine never acts on a half-applied command group (e.g. mode
+        // parsed, ambient still buffered). Bounded to keep a message flood
+        // from starving the fancoil loop.
+        uint8_t drained = 0;
+        do {
+            client.loop();
+        } while (wifiClient.available() && ++drained < 32);
+        if (discoveryPending) {
+            subscribeFancoilTopics();
+            sendHomeAssistantConfiguration();
+            discoveryPending = false;
+        }
         if (stateChanged || (millis() - lastSend) > 30000) sendFancoilStates();
     }
 }

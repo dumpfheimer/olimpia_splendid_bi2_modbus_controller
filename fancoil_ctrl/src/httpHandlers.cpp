@@ -38,163 +38,222 @@ void handleStyles() {
     }
 }
 
+// streams page fragments to the client without ever holding the page (or a
+// section of it) in a heap String: building the full page used to peak at
+// ~2x the page size of contiguous heap, which intermittently failed and left
+// too little heap for the following asset requests
+// (ERR_CONTENT_LENGTH_MISMATCH on scripts.js). Fragments are batched in a
+// small fixed buffer and flushed as one chunk when it fills, so the TCP
+// stream still gets well-filled packets. Call sendPartialFlush() at the end
+// of the handler, then sendContent("") to terminate the chunked response.
+static char partialBuf[1064];
+static size_t partialLen = 0;
+
+void sendPartialFlush() {
+    if (partialLen > 0) {
+        server.sendContent(partialBuf, partialLen);
+        partialLen = 0;
+    }
+}
+
+void sendPartial(const char *s) {
+    size_t l = strlen(s);
+    if (partialLen + l > sizeof(partialBuf)) sendPartialFlush();
+    if (l >= sizeof(partialBuf)) {
+        // fragment larger than the buffer goes out directly
+        server.sendContent(s, l);
+        return;
+    }
+    memcpy(partialBuf + partialLen, s, l);
+    partialLen += l;
+}
+
 void handleRoot() {
-    String html = "";
-    html.reserve(4096);
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "text/html", "");
     
     // HTML header
-    html += "<!DOCTYPE html>";
-    html += "<html lang=\"en\">";
-    html += "<head>";
-    html += "    <meta charset=\"UTF-8\">";
-    html += "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
-    html += "    <title>Fancoil Controller</title>";
-    html += "    <link rel=\"stylesheet\" href=\"/styles.css\">";
-    html += "</head>";
-    html += "<body>";
+    sendPartial("<!DOCTYPE html>");
+    sendPartial("<html lang=\"en\">");
+    sendPartial("<head>");
+    sendPartial("    <meta charset=\"UTF-8\">");
+    sendPartial("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
+    sendPartial("    <title>Fancoil Controller</title>");
+    sendPartial("    <link rel=\"stylesheet\" href=\"/styles.css\">");
+    sendPartial("</head>");
+    sendPartial("<body>");
     
     // Header
-    html += "    <div class=\"header\">";
-    html += "        <div class=\"container header-content\">";
-    html += "            <h1>Fancoil Controller</h1>";
-    html += "            <div>";
-    html += "                <a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\" class=\"btn\">GitHub</a>";
-    html += "                <a href=\"/wifiMgr/configure\" class=\"btn\">WiFi & MQTT</a>";
-    html += "            </div>";
-    html += "        </div>";
-    html += "    </div>";
+    sendPartial("    <div class=\"header\">");
+    sendPartial("        <div class=\"container header-content\">");
+    sendPartial("            <h1>Fancoil Controller</h1>");
+    sendPartial("            <div>");
+    sendPartial("                <a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\" class=\"btn\">GitHub</a>");
+    sendPartial("                <a href=\"/wifiMgr/configure\" class=\"btn\">WiFi & MQTT</a>");
+    sendPartial("            </div>");
+    sendPartial("        </div>");
+    sendPartial("    </div>");
     
+
     // Navigation
-    html += "    <div class=\"nav\">";
-    html += "        <div class=\"container\">";
-    html += "            <ul class=\"nav-list\">";
-    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link active\" data-tab=\"dashboard\">Dashboard</button></li>";
-    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"settings\">Settings</button></li>";
-    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"statistics\">Statistics</button></li>";
-    html += "                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"debug\">Debug</button></li>";
-    html += "            </ul>";
-    html += "        </div>";
-    html += "    </div>";
+    sendPartial("    <div class=\"nav\">");
+    sendPartial("        <div class=\"container\">");
+    sendPartial("            <ul class=\"nav-list\">");
+    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link active\" data-tab=\"dashboard\">Dashboard</button></li>");
+    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"settings\">Settings</button></li>");
+    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"statistics\">Statistics</button></li>");
+    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"debug\">Debug</button></li>");
+    sendPartial("            </ul>");
+    sendPartial("        </div>");
+    sendPartial("    </div>");
     
     // Main container
-    html += "    <div class=\"container mt-2\">";
+    sendPartial("    <div class=\"container mt-2\">");
     
     // Messages
-    html += "        <div id=\"error-message\" style=\"display: none;\" class=\"card\">";
-    html += "            <div class=\"card-content\" style=\"background-color: var(--error-color); color: white;\"></div>";
-    html += "        </div>";
-    html += "        <div id=\"success-message\" style=\"display: none;\" class=\"card\">";
-    html += "            <div class=\"card-content\" style=\"background-color: var(--success-color); color: white;\"></div>";
-    html += "        </div>";
+    sendPartial("        <div id=\"error-message\" style=\"display: none;\" class=\"card\">");
+    sendPartial("            <div class=\"card-content\" style=\"background-color: var(--error-color); color: white;\"></div>");
+    sendPartial("        </div>");
+    sendPartial("        <div id=\"success-message\" style=\"display: none;\" class=\"card\">");
+    sendPartial("            <div class=\"card-content\" style=\"background-color: var(--success-color); color: white;\"></div>");
+    sendPartial("        </div>");
     
     // Dashboard Tab
-    html += "        <div id=\"dashboard-content\" class=\"tab-content active\">";
-    html += "            <div class=\"loading\"></div>";
-    html += "        </div>";
+    sendPartial("        <div id=\"dashboard-content\" class=\"tab-content active\">");
+    sendPartial("            <div class=\"loading\"></div>");
+    sendPartial("        </div>");
     
+
     // Settings Tab
-    html += "        <div id=\"settings-content\" class=\"tab-content\">";
+    sendPartial("        <div id=\"settings-content\" class=\"tab-content\">");
     
     // Register Fancoil
-    html += "            <div class=\"card mb-2\">";
-    html += "                <div class=\"card-header\">Register Fancoil</div>";
-    html += "                <div class=\"card-content\">";
-    html += "                    <div class=\"form-group\">";
-    html += "                        <label class=\"form-label\">Fancoil Address (1-32)</label>";
-    html += "                        <input type=\"number\" min=\"1\" max=\"32\" id=\"register-address\" class=\"form-control\">";
-    html += "                    </div>";
-    html += "                    <button class=\"btn\" onclick=\"registerFancoil()\">Register</button>";
-    html += "                </div>";
-    html += "            </div>";
+    sendPartial("            <div class=\"card mb-2\">");
+    sendPartial("                <div class=\"card-header\">Register Fancoil</div>");
+    sendPartial("                <div class=\"card-content\">");
+    sendPartial("                    <div class=\"form-group\">");
+    sendPartial("                        <label class=\"form-label\">Fancoil Address (1-32)</label>");
+    sendPartial("                        <input type=\"number\" min=\"1\" max=\"32\" id=\"register-address\" class=\"form-control\">");
+    sendPartial("                    </div>");
+    sendPartial("                    <button class=\"btn\" onclick=\"registerFancoil()\">Register</button>");
+    sendPartial("                </div>");
+    sendPartial("            </div>");
     
+
     // Unregister Fancoil
-    html += "            <div class=\"card mb-2\">";
-    html += "                <div class=\"card-header\">Unregister Fancoil</div>";
-    html += "                <div class=\"card-content\">";
-    html += "                    <div class=\"form-group\">";
-    html += "                        <label class=\"form-label\">Fancoil Address (1-32)</label>";
-    html += "                        <input type=\"number\" min=\"1\" max=\"32\" id=\"unregister-address\" class=\"form-control\">";
-    html += "                    </div>";
-    html += "                    <button class=\"btn\" onclick=\"unregisterFancoil()\">Unregister</button>";
-    html += "                </div>";
-    html += "            </div>";
+    sendPartial("            <div class=\"card mb-2\">");
+    sendPartial("                <div class=\"card-header\">Unregister Fancoil</div>");
+    sendPartial("                <div class=\"card-content\">");
+    sendPartial("                    <div class=\"form-group\">");
+    sendPartial("                        <label class=\"form-label\">Fancoil Address (1-32)</label>");
+    sendPartial("                        <input type=\"number\" min=\"1\" max=\"32\" id=\"unregister-address\" class=\"form-control\">");
+    sendPartial("                    </div>");
+    sendPartial("                    <button class=\"btn\" onclick=\"unregisterFancoil()\">Unregister</button>");
+    sendPartial("                </div>");
+    sendPartial("            </div>");
     
+
     // Change Address
-    html += "            <div class=\"card mb-2\">";
-    html += "                <div class=\"card-header\">Change Fancoil Address</div>";
-    html += "                <div class=\"card-content\">";
-    html += "                    <div class=\"form-group\">";
-    html += "                        <label class=\"form-label\">Source Address (factory default is 0)</label>";
-    html += "                        <input type=\"number\" min=\"0\" max=\"32\" id=\"source-address\" class=\"form-control\">";
-    html += "                    </div>";
-    html += "                    <div class=\"form-group\">";
-    html += "                        <label class=\"form-label\">Target Address (1-32)</label>";
-    html += "                        <input type=\"number\" min=\"1\" max=\"32\" id=\"target-address\" class=\"form-control\">";
-    html += "                    </div>";
-    html += "                    <button class=\"btn\" onclick=\"changeFancoilAddress()\">Change Address</button>";
-    html += "                </div>";
-    html += "            </div>";
+    sendPartial("            <div class=\"card mb-2\">");
+    sendPartial("                <div class=\"card-header\">Change Fancoil Address</div>");
+    sendPartial("                <div class=\"card-content\">");
+    // options are populated client-side by scripts.js (populateAddressSelects):
+    // generating 64 <option> elements here pushed the page String past what
+    // the heap can reliably serve
+    sendPartial("                    <div class=\"form-group\">");
+    sendPartial("                        <label class=\"form-label\">Source Address</label>");
+    sendPartial("                        <select id=\"source-address\" class=\"form-select\">");
+    sendPartial("                            <option value=\"\" selected disabled>select...</option>");
+    sendPartial("                        </select>");
+    sendPartial("                    </div>");
+    sendPartial("                    <div class=\"form-group\">");
+    sendPartial("                        <label class=\"form-label\">Target Address</label>");
+    sendPartial("                        <select id=\"target-address\" class=\"form-select\">");
+    sendPartial("                            <option value=\"\" selected disabled>select...</option>");
+    sendPartial("                        </select>");
+    sendPartial("                    </div>");
+    sendPartial("                    <button class=\"btn\" onclick=\"changeFancoilAddress()\">Change Address</button>");
+    sendPartial("                </div>");
+    sendPartial("            </div>");
     
+
     // Refresh Rate
-    html += "            <div class=\"card mb-2\">";
-    html += "                <div class=\"card-header\">Auto Refresh</div>";
-    html += "                <div class=\"card-content\">";
-    html += "                    <div class=\"form-group\">";
-    html += "                        <label class=\"form-label\">Refresh Rate</label>";
-    html += "                        <select id=\"refresh-rate\" class=\"form-select\">";
-    html += "                            <option value=\"5000\">5 seconds</option>";
-    html += "                            <option value=\"10000\" selected>10 seconds</option>";
-    html += "                            <option value=\"30000\">30 seconds</option>";
-    html += "                            <option value=\"60000\">1 minute</option>";
-    html += "                        </select>";
-    html += "                    </div>";
-    html += "                </div>";
-    html += "            </div>";
+    sendPartial("            <div class=\"card mb-2\">");
+    sendPartial("                <div class=\"card-header\">Auto Refresh</div>");
+    sendPartial("                <div class=\"card-content\">");
+    sendPartial("                    <div class=\"form-group\">");
+    sendPartial("                        <label class=\"form-label\">Refresh Rate</label>");
+    sendPartial("                        <select id=\"refresh-rate\" class=\"form-select\">");
+    sendPartial("                            <option value=\"5000\">5 seconds</option>");
+    sendPartial("                            <option value=\"10000\" selected>10 seconds</option>");
+    sendPartial("                            <option value=\"30000\">30 seconds</option>");
+    sendPartial("                            <option value=\"60000\">1 minute</option>");
+    sendPartial("                        </select>");
+    sendPartial("                    </div>");
+    sendPartial("                </div>");
+    sendPartial("            </div>");
     
     // Factory Reset
-    html += "            <div class=\"card\">";
-    html += "                <div class=\"card-header\">Factory Reset</div>";
-    html += "                <div class=\"card-content\">";
-    html += "                    <p class=\"mb-1\">This will remove all registered fancoils.</p>";
-    html += "                    <button class=\"btn btn-danger\" onclick=\"factoryReset()\">Factory Reset</button>";
-    html += "                </div>";
-    html += "            </div>";
-    html += "        </div>";
+    sendPartial("            <div class=\"card\">");
+    sendPartial("                <div class=\"card-header\">Factory Reset</div>");
+    sendPartial("                <div class=\"card-content\">");
+    sendPartial("                    <p class=\"mb-1\">This will remove all registered fancoils.</p>");
+    sendPartial("                    <button class=\"btn btn-danger\" onclick=\"factoryReset()\">Factory Reset</button>");
+    sendPartial("                </div>");
+    sendPartial("            </div>");
+    sendPartial("        </div>");
     
+
     // Statistics Tab
-    html += "        <div id=\"statistics-content\" class=\"tab-content\">";
-    html += "            <div class=\"loading\"></div>";
-    html += "        </div>";
+    sendPartial("        <div id=\"statistics-content\" class=\"tab-content\">");
+    sendPartial("            <div class=\"loading\"></div>");
+    sendPartial("        </div>");
     
     // Debug Tab
-    html += "        <div id=\"debug-content\" class=\"tab-content\">";
-    html += "            <div class=\"card\">";
-    html += "                <div class=\"card-header\">Debug</div>";
-    html += "                <div class=\"card-content\">";
-    html += "                    <div class=\"form-group\">";
-    html += "                        <label class=\"form-label\">Fancoil Address</label>";
-    html += "                        <input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\" class=\"form-control\">";
-    html += "                    </div>";
-    html += "                    <div class=\"btn-group\">";
-    html += "                        <button class=\"btn\" onclick=\"debug()\">Debug</button>";
-    html += "                        <button class=\"btn\" onclick=\"debug(quickDebugRegs)\">Quick Debug</button>";
-    html += "                    </div>";
-    html += "                    <div id=\"debugOut\" class=\"mt-2\"></div>";
-    html += "                </div>";
-    html += "            </div>";
-    html += "        </div>";
-    html += "    </div>";
+    sendPartial("        <div id=\"debug-content\" class=\"tab-content\">");
+    sendPartial("            <div class=\"card\">");
+    sendPartial("                <div class=\"card-header\">Debug</div>");
+    sendPartial("                <div class=\"card-content\">");
+    sendPartial("                    <div class=\"form-group\">");
+    sendPartial("                        <label class=\"form-label\">Fancoil Address</label>");
+    sendPartial("                        <input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\" class=\"form-control\">");
+    sendPartial("                    </div>");
+    sendPartial("                    <div class=\"btn-group\">");
+    sendPartial("                        <button class=\"btn\" onclick=\"debug()\">Debug</button>");
+    sendPartial("                        <button class=\"btn\" onclick=\"debug(quickDebugRegs)\">Quick Debug</button>");
+    sendPartial("                    </div>");
+    sendPartial("                    <div id=\"debugOut\" class=\"mt-2\"></div>");
+    sendPartial("                </div>");
+    sendPartial("            </div>");
+    sendPartial("        </div>");
+    sendPartial("    </div>");
     
     // Footer
-    html += "    <script src=\"/scripts.js\"></script>";
-    html += "</body>";
-    html += "</html>";
-    
-    server.send(200, "text/html", html);
+    sendPartial("    <script src=\"/scripts.js\"></script>");
+    sendPartial("</body>");
+    sendPartial("</html>");
+
+    sendPartialFlush();
+    // terminate the chunked response
+    server.sendContent("");
 }
 
 void handleUptime() {
-    server.send(200, "text/html", String(millis() / 1000));
+    String ret = String(millis() / 1000);
+#if defined(ESP8266)
+    ret += "\nreset reason: " + ESP.getResetReason();
+    ret += "\nreset info: " + ESP.getResetInfo();
+    ret += "\nfree heap: " + String(ESP.getFreeHeap());
+    ret += "\nheap low-water mark: " + String(heapLowWaterMark);
+    ret += "\nmax free block: " + String(ESP.getMaxFreeBlockSize());
+    ret += "\nheap fragmentation: " + String(ESP.getHeapFragmentation());
+#elif defined(ESP32)
+    ret += "\nreset reason: " + String(esp_reset_reason());
+    ret += "\nfree heap: " + String(ESP.getFreeHeap());
+    ret += "\nheap low-water mark: " + String(heapLowWaterMark);
+    ret += "\nmax free block: " + String(ESP.getMaxAllocHeap());
+#endif
+    server.send(200, "text/html", ret);
 }
 
 void handleGet() {
@@ -275,6 +334,14 @@ void handleGet() {
         } else {
             ret += "\"readTimeout\": false, ";
         }
+
+        if (fancoil->isCollisionSuspected()) {
+            ret += "\"collisionSuspected\": true, ";
+        } else {
+            ret += "\"collisionSuspected\": false, ";
+        }
+        ret += "\"collisionSuspicionCount\": " + String(fancoil->getCollisionSuspicionCount()) + ", ";
+        ret += "\"consecutiveFailures\": " + String(fancoil->getConsecutiveFailures()) + ", ";
 
         if (fancoil->isSwingOn()) {
             ret += "\"swing\": true, ";
@@ -364,8 +431,21 @@ void handleRead() {
 
     //Fancoil *fancoil = getFancoilByAddress(addr);
 
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
+
+    if (!server.hasArg("reg")) {
+        server.send(500, "text/plain", "reg must be specified");
+        return;
+    }
+
     uint16_t reg = server.arg("reg").toDouble();
-    uint16_t len = server.arg("len").toDouble();
+    uint16_t len = 1;
+    if (server.hasArg("len")) {
+        uint16_t len = server.arg("len").toDouble();
+    }
 
     IncomingMessage *i = modbusReadRegister(&MODBUS_SERIAL, addr, reg, len);
 
@@ -389,6 +469,11 @@ void handleWrite() {
     }
 
     //Fancoil *fancoil = getFancoilByAddress(addr);
+
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
 
     uint16_t reg = server.arg("reg").toDouble();
     uint16_t val = server.arg("val").toDouble();
@@ -419,6 +504,11 @@ void handleResetWaterTemperatureFault() {
         return;
     }
 
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
+
     if (fancoil->resetWaterTemperatureFault(&MODBUS_SERIAL)) {
         server.send(200, "text/plain", "ok");
     } else {
@@ -427,6 +517,13 @@ void handleResetWaterTemperatureFault() {
 }
 
 void handleRegister() {
+    // this handler frees and rebuilds the fancoil list; when reached
+    // re-entrantly (web server serviced from the modbus yield callback), the
+    // suspended Fancoil::loop() above us would resume on freed memory
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
     uint8_t addr = getAddress();
 
     if (!(addr > 0 && addr <= 32)) {
@@ -442,6 +539,9 @@ void handleRegister() {
     }
 
     if (registerFancoil(addr)) {
+        // the new unit needs its command-topic subscriptions and discovery
+        // configs; handled by the next loopMqtt pass
+        mqttRequestDiscovery();
         server.send(200, "text/plain", "ok");
     } else {
         server.send(500, "text/plain", "register failed");
@@ -449,12 +549,22 @@ void handleRegister() {
 }
 
 void handleFactoryReset() {
+    // frees the fancoil list - must not run re-entrantly, see handleRegister
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
     EEPROM.write(FANCOIL_EEPROM_START_ADDRESS, 0);
     loadFancoils();
     server.send(200, "text/plain", "ok");
 }
 
 void handleUnregister() {
+    // frees the fancoil list - must not run re-entrantly, see handleRegister
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
     uint8_t addr = getAddress();
 
     Fancoil *fancoil = getFancoilByAddress(addr);
@@ -582,6 +692,11 @@ void handleSet() {
 
     if (fancoil->writeTo(&MODBUS_SERIAL)) {
         handleGet();
+    } else if (modbusBusy) {
+        // bounced because another transaction owns the bus right now; the
+        // desired state was already stored above and the periodic loop will
+        // flush it shortly, so this is not a real failure.
+        server.send(503, "application/json", "{\"error\": \"modbus busy, will be applied shortly\"}");
     } else {
         server.send(500, "application/json", "{\"error\": \"write failed\"}");
     }
@@ -616,6 +731,37 @@ void handleChangeAddress() {
         server.send(500, "text/plain", "target address musst be between 1 and 32");
         return;
     }
+    if (sourceAddress > 32) {
+        server.send(500, "text/plain", "source address musst be between 0 (broadcast) and 32");
+        return;
+    }
+    if (sourceAddress == targetAddress) {
+        server.send(500, "text/plain", "source and target address are identical");
+        return;
+    }
+
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
+
+    // refuse if something already answers on the target address - a second
+    // unit on the same address answers every request in duplicate, which
+    // corrupts frames and cannot be untangled in software afterwards
+    if (modbusReadRegister(&MODBUS_SERIAL, targetAddress, 101)->success()) {
+        server.send(409, "text/plain", "target address is already in use by a unit on the bus");
+        return;
+    }
+
+    if (sourceAddress == 0) {
+        // address 0 is the modbus broadcast address: EVERY listening unit
+        // executes the write and none of them respond, so success cannot be
+        // confirmed. Only safe with exactly one unit powered on the bus.
+        modbusWriteRegister(&MODBUS_SERIAL, sourceAddress, 200, targetAddress);
+        server.send(200, "text/plain",
+                    "broadcast sent: every listening unit now has the target address (no confirmation possible - verify with a read)");
+        return;
+    }
 
     if (modbusWriteRegister(&MODBUS_SERIAL, sourceAddress, 200, targetAddress)->success()) {
         debugPrintln("address change write was successfull");
@@ -627,6 +773,10 @@ void handleChangeAddress() {
 
 void handleModbusReadCount() {
     server.send(200, "text/plain", String(modbusReadCount));
+}
+
+void handleModbusCollisions() {
+    server.send(200, "text/plain", String(modbusCollisionSuspicions));
 }
 
 void handleModbusReadErrors() {
@@ -685,6 +835,7 @@ void setupHttp() {
     server.on("/modbusReadCount", handleModbusReadCount);
     server.on("/modbusReadErrors", handleModbusReadErrors);
     server.on("/modbusErrorRatio", handleModbusErrorRatio);
+    server.on("/modbusCollisions", handleModbusCollisions);
 
     // Control routes
     server.on("/set", HTTP_POST, handleSet);

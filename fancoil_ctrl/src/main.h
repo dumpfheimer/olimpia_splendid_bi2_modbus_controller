@@ -35,5 +35,9 @@ extern HardwareSerial modbusSerial;
 
 extern XWebServer server;
 
+// lowest free heap ever observed (sampled every main loop pass); exposed via
+// /uptime to distinguish a slow leak from transient dips
+extern uint32_t heapLowWaterMark;
+
 
 #endif //FANCOIL_CTRL_MAIN_H

@@ -17,6 +17,9 @@
 
 void setupMqtt();
 void loopMqtt();
+bool mqttIsConfigured();
+bool mqttIsConnected();
+void mqttRequestDiscovery();
 void sendHomeAssistantConfiguration();
 void unconfigureHomeAssistantDevice(String addr, bool onlyExtra);
 void notifyStateChanged();
