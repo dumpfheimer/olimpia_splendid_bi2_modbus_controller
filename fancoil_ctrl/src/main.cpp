@@ -4,7 +4,10 @@ XWebServer server(80);
 
 #if defined(ESP8266)
 // instantiate ModbusMaster object
-SoftwareSerial modbusSerial(D4, D1, true);
+// RX on D6/GPIO12, not D4/GPIO2: a 5V MAX485 needs its RO level-shifted down
+// (2k2 series / 3k3 to GND), and that divider holds whatever pin it feeds low
+// while RO is high-Z - fatal on GPIO2, which must be HIGH at reset. See main.h.
+SoftwareSerial modbusSerial(D6, D1);
 #elif defined(ESP32)
 HardwareSerial modbusSerial(1);
 #else
@@ -53,6 +56,15 @@ void setup() {
     // scan-never-succeeds state, only a reset recovers it. ~10 tries at one
     // every 10s = reboot after ~2 minutes without WiFi.
     wifiMgrSetRebootAfterUnsuccessfullTries(10);
+
+#if defined(ESP8266)
+    // reduce TX power from the 20.5dBm default: the fleet's recurring
+    // hardware-watchdog crashes resolve to the WiFi blob's TX-path interrupt
+    // handlers (lmacProcessTxSuccess, wDev_ProcessFiq), and lowering PA
+    // stress is the known mitigation. RSSI runs -52..-67 here, so 3.5dB of
+    // margin is unused anyway.
+    WiFi.setOutputPower(17.0);
+#endif
 
 #ifdef WIFI_SSID
     setupWifi(WIFI_SSID, WIFI_PASSWORD, WIFI_HOST);

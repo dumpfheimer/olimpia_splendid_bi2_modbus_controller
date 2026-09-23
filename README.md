@@ -15,6 +15,8 @@ https://github.com/r0bb10/ESPHome-Olimpia-Bridge
 6. Register the fan coil address (see registering/unregistering)
 7. Change Fancoil Settings over http://CONTROLLER_IP/set?on=1
 
+if your touch pad shows bL it means its locked. i can lock and unlock mine be touching "+" and "-" together for 5 seconds
+
 ### Controlling the fan coil over HTTP
 
 HTTP examples:

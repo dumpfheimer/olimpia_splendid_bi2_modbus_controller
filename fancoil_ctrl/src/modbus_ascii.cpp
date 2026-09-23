@@ -70,9 +70,11 @@ double IncomingMessage::toTemperature() {
 char readBuffer[INCOMING_MESSAGE_BUFFER_SIZE * 2]{0};
 
 void setupModbus() {
-    if (incomingMessage == nullptr) {
-        incomingMessage = new (std::nothrow) IncomingMessage();
-    }
+    // static storage: modbusRead dereferences this unconditionally, so a
+    // failed heap allocation here used to mean a guaranteed crash at the
+    // first transaction
+    static IncomingMessage message;
+    incomingMessage = &message;
 }
 
 void preTransmission() {

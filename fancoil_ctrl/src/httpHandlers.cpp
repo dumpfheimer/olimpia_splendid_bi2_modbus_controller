@@ -1,13 +1,22 @@
 #include "httpHandlers.h"
 
+// case-insensitive: an on_off command with an unrecognized payload fails
+// toward OFF, so being strict about capitalization ("On", "TRUE", "YES"
+// used to be rejected) silently powered units down
 bool isTrue(String str) {
+    str.toLowerCase();
     return str == "true" ||
-           str == "True" ||
-           str == "Yes" ||
            str == "yes" ||
            str == "1" ||
-           str == "on" ||
-           str == "ON";
+           str == "on";
+}
+
+// String(x, BIN) drops leading zeros, which makes register bytes ambiguous to
+// read (bit 6 masquerades as bit 7); always show all 8 bits
+String toBin8(uint8_t b) {
+    String s = String(b, BIN);
+    while (s.length() < 8) s = "0" + s;
+    return s;
 }
 
 uint8_t getAddress() {
@@ -68,9 +77,33 @@ void sendPartial(const char *s) {
     partialLen += l;
 }
 
-void handleRoot() {
+void sendPartial(const String &s) {
+    size_t l = s.length();
+    if (partialLen + l > sizeof(partialBuf)) sendPartialFlush();
+    if (l >= sizeof(partialBuf)) {
+        server.sendContent(s.c_str(), l);
+        return;
+    }
+    memcpy(partialBuf + partialLen, s.c_str(), l);
+    partialLen += l;
+}
+
+// starts a chunked streaming response; append with sendPartial(), terminate
+// with sendPartialEnd()
+void sendPartialBegin(int code, const char *contentType) {
+    partialLen = 0;
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    server.send(200, "text/html", "");
+    server.send(code, contentType, "");
+}
+
+void sendPartialEnd() {
+    sendPartialFlush();
+    // zero-length chunk terminates the chunked response
+    server.sendContent("");
+}
+
+void handleRoot() {
+    sendPartialBegin(200, "text/html");
     
     // HTML header
     sendPartial("<!DOCTYPE html>");
@@ -175,6 +208,25 @@ void handleRoot() {
     sendPartial("                    <button class=\"btn\" onclick=\"changeFancoilAddress()\">Change Address</button>");
     sendPartial("                </div>");
     sendPartial("            </div>");
+    sendPartial("");
+
+    // Remote Control (rE)
+    sendPartial("            <div class=\"card mb-2\">");
+    sendPartial("                <div class=\"card-header\">Remote Control (rE)</div>");
+    sendPartial("                <div class=\"card-content\">");
+    sendPartial("                    <p class=\"mb-1\">Sets the unit's remote-enable flag (register 224 bit 2). A unit without it runs its own thermostat and ignores this controller.</p>");
+    sendPartial("                    <div class=\"form-group\">");
+    sendPartial("                        <label class=\"form-label\">Fancoil Address</label>");
+    sendPartial("                        <select id=\"remote-address\" class=\"form-select\">");
+    sendPartial("                            <option value=\"\" selected disabled>select...</option>");
+    sendPartial("                        </select>");
+    sendPartial("                    </div>");
+    sendPartial("                    <div class=\"btn-group\">");
+    sendPartial("                        <button class=\"btn\" onclick=\"setRemoteEnable(true)\">Enable Remote</button>");
+    sendPartial("                        <button class=\"btn btn-warning\" onclick=\"setRemoteEnable(false)\">Disable Remote</button>");
+    sendPartial("                    </div>");
+    sendPartial("                </div>");
+    sendPartial("            </div>");
     
 
     // Refresh Rate
@@ -233,9 +285,7 @@ void handleRoot() {
     sendPartial("</body>");
     sendPartial("</html>");
 
-    sendPartialFlush();
-    // terminate the chunked response
-    server.sendContent("");
+    sendPartialEnd();
 }
 
 void handleUptime() {
@@ -269,155 +319,164 @@ void handleGet() {
     if (fancoil == nullptr) {
         server.send(404, "text/plain", "address not registered");
     } else {
-        String ret = "{";
-        ret += "\"address\": " + String(fancoil->getAddress(), HEX) + ",";
-        ret += "\"setpoint\": " + String(fancoil->getSetpoint()) + ",";
-        ret += "\"ambient\": " + String(fancoil->getAmbient()) + ",";
+        sendPartialBegin(200, "application/json");
+        sendPartial("{");
+        // decimal! this used to print HEX (address 17 displayed as "11"),
+        // which repeatedly confused address diagnostics
+        sendPartial("\"address\": " + String(fancoil->getAddress()) + ",");
+        sendPartial("\"setpoint\": " + String(fancoil->getSetpoint()) + ",");
+        sendPartial("\"ambient\": " + String(fancoil->getAmbient()) + ",");
 
         if (fancoil->hasValidDesiredState) {
-            ret += "\"hasValidDesiredState\": true, ";
+            sendPartial("\"hasValidDesiredState\": true, ");
         } else {
-            ret += "\"hasValidDesiredState\": false, ";
+            sendPartial("\"hasValidDesiredState\": false, ");
         }
 
         if (fancoil->wantsToRead()) {
-            ret += "\"wantsToRead\": true, ";
+            sendPartial("\"wantsToRead\": true, ");
         } else {
-            ret += "\"wantsToRead\": false, ";
+            sendPartial("\"wantsToRead\": false, ");
         }
 
         if (fancoil->wantsToWrite()) {
-            ret += "\"wantsToWrite\": true, ";
+            sendPartial("\"wantsToWrite\": true, ");
         } else {
-            ret += "\"wantsToWrite\": false, ";
+            sendPartial("\"wantsToWrite\": false, ");
         }
 
         if (fancoil->isOn()) {
-            ret += "\"on\": true, ";
+            sendPartial("\"on\": true, ");
         } else {
-            ret += "\"on\": false, ";
+            sendPartial("\"on\": false, ");
         }
 
         switch (fancoil->getSpeed()) {
             case FanSpeed::MAX:
-                ret += "\"speed\": \"MAX\", ";
+                sendPartial("\"speed\": \"MAX\", ");
                 break;
             case FanSpeed::NIGHT:
-                ret += "\"speed\": \"NIGHT\", ";
+                sendPartial("\"speed\": \"NIGHT\", ");
                 break;
             case FanSpeed::MIN:
-                ret += "\"speed\": \"MIN\", ";
+                sendPartial("\"speed\": \"MIN\", ");
                 break;
             case FanSpeed::AUTOMATIC:
-                ret += "\"speed\": \"AUTOMATIC\", ";
+                sendPartial("\"speed\": \"AUTOMATIC\", ");
                 break;
         }
 
         if (fancoil->getMode() == Mode::FAN_ONLY) {
-            ret += "\"mode\": \"FAN_ONLY\", ";
+            sendPartial("\"mode\": \"FAN_ONLY\", ");
         } else if (fancoil->getMode() == Mode::COOLING) {
-            ret += "\"mode\": \"COOLING\", ";
+            sendPartial("\"mode\": \"COOLING\", ");
         } else if (fancoil->getMode() == Mode::HEATING) {
-            ret += "\"mode\": \"HEATING\", ";
+            sendPartial("\"mode\": \"HEATING\", ");
         } else {
-            ret += "\"mode\": \"AUTO\", ";
+            sendPartial("\"mode\": \"AUTO\", ");
         }
 
         if (fancoil->ambientTemperatureIsValid()) {
-            ret += "\"ambientTemperatureIsValid\": true, ";
+            sendPartial("\"ambientTemperatureIsValid\": true, ");
         } else {
-            ret += "\"ambientTemperatureIsValid\": false, ";
+            sendPartial("\"ambientTemperatureIsValid\": false, ");
         }
 
         if (fancoil->readTimeout()) {
-            ret += "\"readTimeout\": true, ";
+            sendPartial("\"readTimeout\": true, ");
         } else {
-            ret += "\"readTimeout\": false, ";
+            sendPartial("\"readTimeout\": false, ");
         }
 
         if (fancoil->isCollisionSuspected()) {
-            ret += "\"collisionSuspected\": true, ";
+            sendPartial("\"collisionSuspected\": true, ");
         } else {
-            ret += "\"collisionSuspected\": false, ";
+            sendPartial("\"collisionSuspected\": false, ");
         }
-        ret += "\"collisionSuspicionCount\": " + String(fancoil->getCollisionSuspicionCount()) + ", ";
-        ret += "\"consecutiveFailures\": " + String(fancoil->getConsecutiveFailures()) + ", ";
+        sendPartial("\"collisionSuspicionCount\": " + String(fancoil->getCollisionSuspicionCount()) + ", ");
+        sendPartial("\"consecutiveFailures\": " + String(fancoil->getConsecutiveFailures()) + ", ");
+
+        if (fancoil->isLocalModeDetected()) {
+            sendPartial("\"localMode\": true, ");
+        } else {
+            sendPartial("\"localMode\": false, ");
+        }
+        sendPartial("\"localModeRepairs\": " + String(fancoil->getLocalModeRepairs()) + ", ");
 
         if (fancoil->isSwingOn()) {
-            ret += "\"swing\": true, ";
+            sendPartial("\"swing\": true, ");
         } else {
-            ret += "\"swing\": false, ";
+            sendPartial("\"swing\": false, ");
         }
 
         if (fancoil->ev1On()) {
-            ret += "\"ev1\": true, ";
+            sendPartial("\"ev1\": true, ");
         } else {
-            ret += "\"ev1\": false, ";
+            sendPartial("\"ev1\": false, ");
         }
 
         if (fancoil->ev2On()) {
-            ret += "\"ev2\": true, ";
+            sendPartial("\"ev2\": true, ");
         } else {
-            ret += "\"ev2\": false, ";
+            sendPartial("\"ev2\": false, ");
         }
 
         if (fancoil->boilerOn()) {
-            ret += "\"boiler\": true, ";
+            sendPartial("\"boiler\": true, ");
         } else {
-            ret += "\"boiler\": false, ";
+            sendPartial("\"boiler\": false, ");
         }
 
         if (fancoil->chillerOn()) {
-            ret += "\"chiller\": true, ";
+            sendPartial("\"chiller\": true, ");
         } else {
-            ret += "\"chiller\": false, ";
+            sendPartial("\"chiller\": false, ");
         }
 
         if (fancoil->hasWaterFault()) {
-            ret += "\"waterFault\": true, ";
+            sendPartial("\"waterFault\": true, ");
         } else {
-            ret += "\"waterFault\": false, ";
+            sendPartial("\"waterFault\": false, ");
         }
 
 #ifdef LOAD_WATER_TEMP
-        ret += "\"waterTemp\": " + String(fancoil->getWaterTemp()) + ", ";
+        sendPartial("\"waterTemp\": " + String(fancoil->getWaterTemp()) + ", ");
 #endif
 
 #ifdef LOAD_AMBIENT_TEMP
-        ret += "\"ambientTemp\": " + String(fancoil->getAmbientTemp()) + ", ";
+        sendPartial("\"ambientTemp\": " + String(fancoil->getAmbientTemp()) + ", ");
 #endif
 
         switch (fancoil->getSyncState()) {
             case SyncState::HAPPY:
-                ret += "\"syncState\": \"HAPPY\",";
+                sendPartial("\"syncState\": \"HAPPY\",");
                 break;
             case SyncState::WRITING:
-                ret += "\"syncState\": \"WRITING\",";
+                sendPartial("\"syncState\": \"WRITING\",");
                 break;
             default:
-                ret += "\"syncState\": \"INVALID\",";
+                sendPartial("\"syncState\": \"INVALID\",");
                 break;
         }
-	ret += "\"data\":[";
-	ret += "\"";
-	ret += String(fancoil->getData1(), BIN);
-	ret += "\",";
-	ret += "\"";
-	ret += String(fancoil->getData2(), BIN);
-	ret += "\"";
-	ret += "],";
-	ret += "\"recData\":[";
-	ret += "\"";
-	ret += String(fancoil->getRecData1(), BIN);
-	ret += "\",";
-	ret += "\"";
-	ret += String(fancoil->getRecData2(), BIN);
-	ret += "\"";
-	ret += "]";
+	sendPartial("\"data\":[");
+	sendPartial("\"");
+	sendPartial(toBin8(fancoil->getData1()));
+	sendPartial("\",");
+	sendPartial("\"");
+	sendPartial(toBin8(fancoil->getData2()));
+	sendPartial("\"");
+	sendPartial("],");
+	sendPartial("\"recData\":[");
+	sendPartial("\"");
+	sendPartial(toBin8(fancoil->getRecData1()));
+	sendPartial("\",");
+	sendPartial("\"");
+	sendPartial(toBin8(fancoil->getRecData2()));
+	sendPartial("\"");
+	sendPartial("]");
 
-        ret += "}";
-
-        server.send(200, "application/json", ret);
+        sendPartial("}");
+        sendPartialEnd();
     }
 }
 
@@ -588,7 +647,8 @@ void handleList() {
     debugPrintln("creating list");
     String ret = "[";
 
-    while (fancoilLinkedList != nullptr && fancoilLinkedList->fancoil != nullptr) {
+    uint8_t walked = 0;
+    while (fancoilLinkedList != nullptr && fancoilLinkedList->fancoil != nullptr && ++walked <= MAX_FANCOIL_LIST_WALK) {
         ret += String(fancoilLinkedList->fancoil->getAddress());
         if (fancoilLinkedList->next != nullptr) ret += ",";
         fancoilLinkedList = fancoilLinkedList->next;
@@ -771,6 +831,51 @@ void handleChangeAddress() {
     }
 }
 
+// register 224 bit 2 is the unit's remote-enable (rE) flag - field-PROVEN by
+// induced failure and recovery (2026-08-29, unit 17: clearing the bit dropped
+// the unit out of remote control, setting it restored remote control, live,
+// no reboot needed). Read-modify-write preserves all other bits (the swing
+// flag lives in the same register); the read is envelope-validated like
+// every transaction.
+void handleRemoteEnable() {
+    uint8_t addr = getAddress();
+    if (!(addr > 0 && addr <= 32)) {
+        server.send(500, "text/plain", "address must be between 1 and 32");
+        return;
+    }
+    bool enable = isTrue(server.arg("enable"));
+
+    if (modbusBusy) {
+        server.send(503, "text/plain", "modbus busy, retry");
+        return;
+    }
+
+    IncomingMessage *res = modbusReadRegister(&MODBUS_SERIAL, addr, 224, 1);
+    if (!res->success()) {
+        server.send(500, "text/plain", "could not read register 224");
+        return;
+    }
+    uint16_t val = (res->data[1] << 8) | res->data[2];
+    uint16_t newVal = enable ? (val | 0x0004) : (val & ~0x0004);
+
+    if (newVal == val) {
+        server.send(200, "text/plain", enable ? "remote control was already enabled" : "remote control was already disabled");
+        return;
+    }
+
+    if (modbusWriteRegister(&MODBUS_SERIAL, addr, 224, newVal)->success()) {
+#ifdef FANCOIL_REMOTE_GUARD
+        if (enable) {
+            Fancoil *fancoil = getFancoilByAddress(addr);
+            if (fancoil != nullptr) fancoil->notifyRemoteEnabled();
+        }
+#endif
+        server.send(200, "text/plain", enable ? "remote control enabled" : "remote control disabled");
+    } else {
+        server.send(500, "text/plain", "write to register 224 failed");
+    }
+}
+
 void handleModbusReadCount() {
     server.send(200, "text/plain", String(modbusReadCount));
 }
@@ -842,6 +947,7 @@ void setupHttp() {
     server.on("/set", HTTP_GET, handleSet);
     server.on("/test", handleTest);
     server.on("/changeAddress", HTTP_POST, handleChangeAddress);
+    server.on("/remoteEnable", HTTP_POST, handleRemoteEnable);
 
     // Start the server
     //server.begin();

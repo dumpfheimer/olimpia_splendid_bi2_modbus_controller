@@ -1,6 +1,17 @@
 #include "fancoil.h"
 
+// swing support can be compiled out with #define DISABLE_SWING. Note that
+// register 224 lives in the units' wear-limited EEPROM region ("registers
+// 200 and successive" per docs/RDE109); writeSwingIfNeeded only writes it
+// when a validated read disagrees with the desired state, which is rare now
+// that responses are envelope-validated - but on a bus with duplicated
+// addresses the alternating responders can disagree every cycle and cause
+// sustained EEPROM writes.
+#ifdef DISABLE_SWING
+bool noSwing = true;
+#else
 bool noSwing = false;
+#endif
 
 Fancoil::Fancoil() {
     init(0);
@@ -47,6 +58,8 @@ void Fancoil::init(uint8_t addr) {
     consecutiveFailures = 0;
     lastCommAttempt = 0;
     backoffPeriod = 30000;
+    localModeDetected = false;
+    localModeRepairs = 0;
 #ifdef AMBIENT_TEMPERATURE_TIMEOUT_S
     ambientSetTimeout = AMBIENT_TEMPERATURE_TIMEOUT_S;
 #endif
@@ -320,6 +333,75 @@ uint8_t Fancoil::getConsecutiveFailures() const {
     return consecutiveFailures;
 }
 
+bool Fancoil::isLocalModeDetected() const {
+    return localModeDetected;
+}
+
+uint16_t Fancoil::getLocalModeRepairs() const {
+    return localModeRepairs;
+}
+
+#ifdef FANCOIL_REMOTE_GUARD
+// Detects a unit that is not executing remote control, using a signal the
+// unit cannot fake: in genuine remote mode registers 0 and 8 ECHO the
+// ambient/setpoint the master writes; in local or half-transitioned "zombie"
+// mode they show the unit's own sensor and local setpoint (field-mapped on
+// Bi2 Wall TR, 2026-08-29, see docs/register-dumps/). Register 201 (128 =
+// remote, 3 = local) is deliberately NOT the detector: writes to it land in
+// a RAM shadow that reads back 128 while the unit stays local - including
+// our own neutralizing write below, which would blind a 201-based check.
+// Both echoes must mismatch to latch, so a written value coinciding with
+// the room temperature cannot false-flag.
+// The neutralizing write of 128 only DISARMS the local thermostat (stops
+// autonomous fan/valve action); full remote restore has only ever been
+// achieved at the unit's panel (rE). Damage control + alerting, not repair.
+void Fancoil::guardRemoteMode(Stream *stream) {
+    // primary signal, field-proven 2026-08-29: register 224 bit 2 IS the
+    // remote-enable flag. Definitive, no tolerance heuristics.
+    IncomingMessage *resRe = modbusReadRegisterI(stream, address, 224, 1);
+    if (resRe->success() && ((((resRe->data[1] << 8) | resRe->data[2]) & 0x0004) == 0)) {
+        localModeDetected = true;
+        debugPrint("remote-enable bit not set: ");
+        debugPrintln(address);
+        return;
+    }
+
+    // secondary cross-check via the echo test: catches a unit whose rE bit
+    // reads set but which is not actually executing remote control
+    if (!hasValidDesiredState || !ambientTemperatureIsValid()) return;
+
+    IncomingMessage *res0 = modbusReadRegisterI(stream, address, 0, 1);
+    if (!res0->success()) return;
+    double effAmbient = ((res0->data[1] << 8) | res0->data[2]) / 10.0;
+    if (fabs(effAmbient - getAmbient()) <= 1.0) {
+        localModeDetected = false;
+        return;
+    }
+
+    IncomingMessage *res8 = modbusReadRegisterI(stream, address, 8, 1);
+    if (!res8->success()) return;
+    double effSetpoint = ((res8->data[1] << 8) | res8->data[2]) / 10.0;
+    if (fabs(effSetpoint - getSetpoint()) <= 1.0) {
+        localModeDetected = false;
+        return;
+    }
+
+    localModeDetected = true;
+    localModeRepairs++;
+    debugPrint("unit not executing remote control: ");
+    debugPrintln(address);
+    // detection only - per the write policy, nothing is written to a unit
+    // that is not remote-enabled; repair goes through /remoteEnable
+}
+
+// called by the /remoteEnable endpoint after successfully setting the flag,
+// so control resumes immediately instead of waiting for the next probe cycle
+void Fancoil::notifyRemoteEnabled() {
+    localModeDetected = false;
+    forceWrite();
+}
+#endif
+
 bool Fancoil::writeTo(Stream *stream) {
     if (!hasValidDesiredState) return false;
 
@@ -355,11 +437,13 @@ bool Fancoil::writeTo(Stream *stream) {
     // data
     uint8_t data2 = 0;
     if (!on) {
-        // always on right now
+        // standby: the fan-speed field MUST be 00 here. A non-zero speed
+        // field is a manual ventilation command the unit executes even in
+        // standby (observed 2026-08-20: writing off+MAX ran the fan at full
+        // with valves open, while off+00 on the sibling unit was truly off).
+        // The desired speed stays in RAM and is written again on turn-on.
         data2 = data2 | (1 << 7);
-    }
-
-    if (speed == FanSpeed::AUTOMATIC) {
+    } else if (speed == FanSpeed::AUTOMATIC) {
         // 00
     } else if (speed == FanSpeed::MIN) {
         data2 = data2 | 0b01;
@@ -587,10 +671,26 @@ bool Fancoil::writeSwingIfNeeded(Stream *stream) {
             byte data2 = i->data[2];
             bool isOn = (data1 & 0b10) > 0;
 
+            // SECURITY GATE: register 224 bit 2 (low byte) is the unit's
+            // remote-enable flag (field-proven 2026-08-29). If the read does
+            // not show it SET, write NOTHING - a swing write composed from a
+            // wrong/garbled read is exactly how units historically lost
+            // remote-enable, and a deliberately-local unit must not be
+            // touched. Only the /remoteEnable endpoint may write 224 in that
+            // state.
+            if ((data2 & 0x04) == 0) {
+                debugPrintln("swing write refused: remote-enable bit not set in 224");
+                return false;
+            }
+
             if (isOn == swingOn) {
                 return true;
             } else {
                 data1 = data1 ^ 0b10; // flip that bit! = toggle
+
+                // belt and braces: the written value must never clear the
+                // remote-enable bit, whatever the read contained
+                data2 = data2 | 0x04;
 
                 IncomingMessage *i2 = modbusWriteRegister(stream, address, 224, (data1 << 8) | data2);
                 if (!i2->valid) {
@@ -696,9 +796,14 @@ bool Fancoil::checkForCollisions(Stream *stream) {
 
     bool strayResponder = modbusCollisionSuspicions > suspicionsBefore;
     bool contentionErrors = failedReads >= 2;
-    bool rpmSpread = validReads >= 2 && (maxVal - minVal) > 50;
+    // NOTE: an RPM-spread signal was tried and removed: a single fan running
+    // at speed wobbles by more than any safe threshold (observed 28 false
+    // suspicions on a healthy unit at MAX), and the merged-responder case it
+    // targeted is caught by contention failures anyway.
+    (void) minVal;
+    (void) maxVal;
 
-    bool suspicious = strayResponder || contentionErrors || rpmSpread;
+    bool suspicious = strayResponder || contentionErrors;
     if (suspicious) {
         collisionSuspicionCount++;
         if (lastProbeSuspicious) {
@@ -738,6 +843,9 @@ void Fancoil::loop(Stream *stream) {
     if (!readTimeout() && ((millis() - lastCollisionCheck) > collisionCheckPeriod || lastCollisionCheck == 0)) {
         lastCollisionCheck = millis();
         checkForCollisions(stream);
+#ifdef FANCOIL_REMOTE_GUARD
+        guardRemoteMode(stream);
+#endif
     }
     // 1. check if values have been received over network recently
     // 2 if not, disconnect, break

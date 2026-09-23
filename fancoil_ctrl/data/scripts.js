@@ -32,6 +32,45 @@ function populateAddressSelects() {
       targetSelect.appendChild(option);
     }
   }
+  const remoteSelect = document.getElementById('remote-address');
+  if (remoteSelect && remoteSelect.options.length <= 1) {
+    for (let i = 1; i <= 32; i++) {
+      const option = document.createElement('option');
+      option.value = String(i);
+      option.textContent = String(i);
+      remoteSelect.appendChild(option);
+    }
+  }
+}
+
+// Enable/disable the unit's remote-control flag (register 224 bit 2)
+async function setRemoteEnable(enable) {
+  const select = document.getElementById('remote-address');
+  if (!select) return;
+  const addr = parseInt(select.value);
+  if (isNaN(addr) || addr < 1 || addr > 32) {
+    showError('Please select a fancoil address.');
+    return;
+  }
+  if (!enable && !confirm('Disable remote control for fancoil ' + addr + '? The unit will fall back to its own local thermostat and ignore this controller.')) {
+    return;
+  }
+  try {
+    const response = await fetch('/remoteEnable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `addr=${addr}&enable=${enable}`
+    });
+    const responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(responseText || `HTTP error ${response.status}`);
+    }
+    showMessage(`Fancoil ${addr}: ${responseText}`);
+    updateFancoil(addr);
+  } catch (error) {
+    console.error('Error setting remote enable:', error);
+    showError(`Failed to set remote control: ${error.message}`);
+  }
 }
 
 // DOM ready function
@@ -136,6 +175,7 @@ function createFancoilCard(address) {
       <span>Fancoil #${address}</span>
       <span id="timeout-${address}" style="display: none; color: #F44336; font-weight: bold; font-size: 12px;">NO RESPONSE</span>
       <span id="collision-${address}" style="display: none; color: #F44336; font-weight: bold; font-size: 12px;" title="Multiple units are answering on this address. Isolate one unit (power the others off) and re-address it.">ADDRESS COLLISION?</span>
+      <span id="localmode-${address}" style="display: none; color: #F44336; font-weight: bold; font-size: 12px;" title="The unit is not executing remote control: registers 0/8 show its own sensor/setpoint instead of echoing the written values. The controller neutralizes its local thermostat automatically, but the unit will NOT obey commands until remote mode (rE) is re-enabled at the unit's panel.">NOT REMOTE</span>
       <div class="status-indicator status-offline" id="status-${address}"></div>
     </div>
     <div class="card-content">
@@ -259,6 +299,10 @@ async function updateFancoil(address) {
     const collisionBadge = document.getElementById(`collision-${address}`);
     if (collisionBadge) {
       collisionBadge.style.display = data.collisionSuspected ? 'inline' : 'none';
+    }
+    const localModeBadge = document.getElementById(`localmode-${address}`);
+    if (localModeBadge) {
+      localModeBadge.style.display = data.localMode ? 'inline' : 'none';
     }
     
     // Update the fancoil data
@@ -784,19 +828,22 @@ async function loadNr(url, retry) {
 }
 
 async function loadReg(addr, reg, retry) {
-  if (retry <= 0) return -1; 
-  retry = retry || 5; 
-  let x = await fetch("/read?addr=" + addr + "&reg=" + reg + "&len=1"); 
+  if (retry <= 0) return -1;
+  retry = retry || 8;
+  let x = await fetch("/read?addr=" + addr + "&reg=" + reg + "&len=1");
   if (x.status == 200) {
-    let t = await x.text(); 
-    if (t != null && t.indexOf('dec: ') > -1) { 
-      let valS = t.substr(t.indexOf("dec:") + 5); 
-      let val = parseInt(valS); 
-      return val; 
-    } else return loadReg(addr, reg, retry - 1);
-  } else {
-    return loadReg(addr, reg, retry - 1);
+    let t = await x.text();
+    if (t != null && t.indexOf('dec: ') > -1) {
+      let valS = t.substr(t.indexOf("dec:") + 5);
+      let val = parseInt(valS);
+      return val;
+    }
   }
+  // busy bus / 503: back off before retrying - a modbus-busy window (an
+  // in-flight fancoil pass) lasts seconds, so instant retries all land
+  // inside the same window
+  await new Promise(resolve => setTimeout(resolve, 400));
+  return loadReg(addr, reg, retry - 1);
 }
 
 async function debug(registers) {

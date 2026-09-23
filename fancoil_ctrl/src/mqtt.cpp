@@ -36,6 +36,9 @@ void notifyStateChanged() {
 }
 
 void publishHelper(String *publishTopic, String *publishMessage, bool retain) {
+    // buffers exist only when MQTT is configured; without this guard an
+    // unregister on an MQTT-less device crashes in toCharArray(nullptr,...)
+    if (topicBuffer == nullptr || messageBuffer == nullptr) return;
     publishTopic->toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
     publishMessage->toCharArray(messageBuffer, MESSAGE_BUFFER_SIZE);
     client.publish(topicBuffer, messageBuffer, retain);
@@ -46,12 +49,14 @@ void publishHelper(String publishTopic, String publishMessage, bool retain) {
 }
 
 void sendMessageBufferTo(String publishTopic, bool retain) {
+    if (topicBuffer == nullptr || messageBuffer == nullptr) return;
     String *ptr = &publishTopic;
     ptr->toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
     client.publish(topicBuffer, messageBuffer, retain);
 }
 
 void subscribeHelper(String *subscribeTopic) {
+    if (topicBuffer == nullptr) return;
     subscribeTopic->toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
     client.subscribe(topicBuffer);
 }
@@ -67,7 +72,12 @@ void sendFancoilState(Fancoil *fancoil) {
     switch (fancoil->getSyncState()) {
         case SyncState::HAPPY:
         case SyncState::WRITING:
-            if (fancoil->ambientTemperatureIsValid()) {
+            // a unit that is not remote-enabled ACKs writes (sync looks
+            // HAPPY) but ignores them - report it unavailable so HA shows
+            // the truth. Deliberately self-clearing (unlike the latching
+            // collision flag, which stays a badge so one past event cannot
+            // pin the entity offline forever).
+            if (fancoil->ambientTemperatureIsValid() && !fancoil->isLocalModeDetected()) {
                 state = "online";
             } else {
                 state = "offline";
@@ -154,7 +164,8 @@ void sendFancoilState(Fancoil *fancoil) {
 void sendFancoilStates() {
     stateChanged = false;
     LinkedFancoilListElement *fancoilLinkedList = getFirstFancoilListElement();
-    while (fancoilLinkedList != nullptr && fancoilLinkedList->fancoil != nullptr) {
+    uint8_t walked = 0;
+    while (fancoilLinkedList != nullptr && fancoilLinkedList->fancoil != nullptr && ++walked <= MAX_FANCOIL_LIST_WALK) {
         sendFancoilState(fancoilLinkedList->fancoil);
         fancoilLinkedList = fancoilLinkedList->next;
         yield();
@@ -181,7 +192,8 @@ void unconfigureHomeAssistantDevice(String addr, bool onlyExtra) {
 void subscribeFancoilTopics() {
     if (!client.connected()) return;
     LinkedFancoilListElement *e = getFirstFancoilListElement();
-    while (e != nullptr && e->fancoil != nullptr) {
+    uint8_t walked = 0;
+    while (e != nullptr && e->fancoil != nullptr && ++walked <= MAX_FANCOIL_LIST_WALK) {
         String addr = String(e->fancoil->getAddress());
         subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/set");
         subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/set");
@@ -388,6 +400,7 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
         Fancoil *f = getFancoilByAddress((int) address.toDouble());
         if (f != nullptr) {
             char *msg_ba = (char *) malloc(sizeof(char) * (length + 1));
+            if (msg_ba == nullptr) return; // OOM: drop the message, not the device
             memcpy(msg_ba, (char *) payload, length);
             msg_ba[length] = 0;
             String msg = String(msg_ba);
@@ -521,6 +534,12 @@ void setupMqtt() {
 
         topicBuffer = (char *) malloc(sizeof(char) * TOPIC_BUFFER_SIZE);
         messageBuffer = (char *) malloc(sizeof(char) * MESSAGE_BUFFER_SIZE);
+
+        if (topicBuffer == nullptr || messageBuffer == nullptr) {
+            // without buffers every publish would crash; behave as if MQTT
+            // were unconfigured (the helpers also guard against null)
+            mqttConfigured = false;
+        }
 
         clientId = WiFi.macAddress();
         clientId.replace(":", "-");

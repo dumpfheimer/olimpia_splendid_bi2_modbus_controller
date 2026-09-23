@@ -8,7 +8,8 @@ struct LinkedFancoilListElement *getLastListElement() {
 
     if (current == nullptr) return nullptr;
 
-    while (current->next != nullptr) {
+    uint8_t walked = 0;
+    while (current->next != nullptr && ++walked <= MAX_FANCOIL_LIST_WALK) {
         current = current->next;
     }
     return current;
@@ -20,7 +21,8 @@ void clearFancoils() {
     DEBUG_SERIAL.flush();
     // current now is the last element
     // now we iterate back over the list and clear everything
-    while (current != &firstListElement) {
+    uint8_t walked = 0;
+    while (current != &firstListElement && ++walked <= MAX_FANCOIL_LIST_WALK) {
         if (current->fancoil != nullptr) free(current->fancoil);
         current = current->prev;
         free(current->next);
@@ -49,7 +51,10 @@ bool addFancoil(uint8_t address) {
         }
         Fancoil *newFancoil = (Fancoil *) calloc(1, sizeof(Fancoil));
         if (newFancoil == nullptr) {
-            free(newEntry);
+            // only free what we allocated: when populating the first element,
+            // newEntry aliases the STATIC firstListElement - free()ing it
+            // corrupts the heap (found by Chris, 2026-08-29)
+            if (newEntry != lastEntry) free(newEntry);
             return false;
         }
         newFancoil->init(address);
@@ -183,7 +188,9 @@ void setupFancoilManager() {
 Fancoil *getFancoilByAddress(uint8_t addr) {
     LinkedFancoilListElement *current = &firstListElement;
 
+    uint8_t walked = 0;
     do {
+        if (++walked > MAX_FANCOIL_LIST_WALK) return nullptr;
         if (current != nullptr && current->fancoil != nullptr && current->fancoil->getAddress() == addr) {
             return current->fancoil;
         }
@@ -203,7 +210,16 @@ void loopFancoils(Stream *stream) {
     if (millis() - lastFancoilManagerRun > 500) {
         lastFancoilManagerRun = millis();
         LinkedFancoilListElement *listElement = getFirstFancoilListElement();
+        uint8_t walked = 0;
         do {
+            if (++walked > MAX_FANCOIL_LIST_WALK) {
+                // more elements than fancoils can exist = the list is
+                // corrupted (cycle). A reboot heals it: RAM is rebuilt
+                // from EEPROM. Without this, a yielding cycle freezes the
+                // device silently with all watchdogs fed.
+                debugPrintln("fancoil list corrupted (cycle), restarting");
+                ESP.restart();
+            }
             if (listElement->fancoil != nullptr) listElement->fancoil->loop(stream);
         } while ((listElement = listElement->next) != nullptr);
     }

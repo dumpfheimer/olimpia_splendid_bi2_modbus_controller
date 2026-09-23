@@ -84,6 +84,11 @@ private:
     uint16_t collisionSuspicionCount = 0;
     bool lastProbeSuspicious = false;
 
+    // remote-mode guard (see loop): register 201 read on the probe cadence;
+    // != 128 means the unit fell back to local control and ignores commands
+    bool localModeDetected = false;
+    uint16_t localModeRepairs = 0;
+
     // backoff for unresponsive units (see loop): after 3 consecutive comm
     // failures the unit is only probed once per backoffPeriod
     uint8_t consecutiveFailures = 0;
@@ -150,9 +155,15 @@ public:
     bool writeSwingIfNeeded(Stream *stream);
     bool resetWaterTemperatureFault(Stream* stream);
     bool checkForCollisions(Stream *stream);
+#ifdef FANCOIL_REMOTE_GUARD
+    void guardRemoteMode(Stream *stream);
+    void notifyRemoteEnabled();
+#endif
     [[nodiscard]] bool isCollisionSuspected() const;
     [[nodiscard]] uint16_t getCollisionSuspicionCount() const;
     [[nodiscard]] uint8_t getConsecutiveFailures() const;
+    [[nodiscard]] bool isLocalModeDetected() const;
+    [[nodiscard]] uint16_t getLocalModeRepairs() const;
     void loop(Stream *stream);
     [[nodiscard]] uint8_t getRecData1() const;
     [[nodiscard]] uint8_t getRecData2() const;

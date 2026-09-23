@@ -30,8 +30,17 @@ extern HardwareSerial modbusSerial;
 #include "logging.h"
 
 
-#define DRIVER_ENABLE_PIN D3
-#define READ_ENABLE_PIN   D2
+// RS485 pinout. DE and the modbus RX line must stay OFF the boot-strap pins:
+// on the D1 mini v3.0.0 GPIO0 (D3) and GPIO2 (D4) carry 12k pull-ups (R10/R11)
+// and must both be HIGH at reset, so anything that holds them low - a transceiver
+// RO output, or the pull-down DE needs to fail safe - puts the board into
+// flash-download mode instead of booting. That is a dead controller that no
+// watchdog recovers: black, no WiFi, until it is power cycled.
+// D2/GPIO4, D6/GPIO12 and D7/GPIO13 are bare pins with no strap function.
+// DE is pulled down (10k) and RE pulled up (10k to 3V3) at the transceiver, so a
+// broken signal wire disables the driver instead of leaving it jamming the bus.
+#define DRIVER_ENABLE_PIN D2
+#define READ_ENABLE_PIN   D7
 
 extern XWebServer server;
 

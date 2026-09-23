@@ -12,6 +12,13 @@
 #define FANCOIL_EEPROM_START_ADDRESS 0
 #define FANCOIL_EEPROM_LENGTH 32
 
+// upper bound for any walk of the fancoil linked list: at most 32 units can
+// exist (modbus addresses 1-32), so a 33rd element proves the list is
+// corrupted (cycle/self-reference). A cyclic list whose loop body yields
+// would otherwise freeze the device silently: watchdogs stay fed while
+// loopWifi/loopMqtt/checkSelfRestart starve behind the captured walk.
+#define MAX_FANCOIL_LIST_WALK 33
+
 class Fancoil;
 
 struct LinkedFancoilListElement {
