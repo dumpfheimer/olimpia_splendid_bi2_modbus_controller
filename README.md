@@ -47,22 +47,22 @@ How to compile the software:
 
 ## HARDWARE
 
-I used a Wemos D1 Mini Lite (but any ESP8266 should work fine, and the code should be adaptable to an ESP32 with minimal effort) with a MAX 485 Module like https://www.amazon.de/ANGEEK-MAX485-Module-Converter-arduino/dp/B07X541M2T
-Check out the PCB design in the pcb folder.
+I used a Wemos D1 Mini Lite (but any ESP8266 should work fine, and the code should be adaptable to an ESP32 with minimal effort) with a MAX 3485 Module. Note that the MAX 485 module >can< work but it is made for 5V and could crash or brick your ESP8266.
+A V2 board is in the making that switched from the 485 to the 3485. When it is confirmed working I will publish the layout for NON COMMERCIAL use.
 
 
 ### Wire Connections
 
-| ESP        | MAX485 |
-|------------|--------|
-| 5V         | 5V     |
-| GND        | GND    |
-| GPIO2 / D4 | RO     |
-| GPIO0 / D3 | RE     |
-| GPIO4 / D2 | DE     |
-| GPIO5 / D1 | DI     |
+| ESP        | MAX3485 |
+|------------|---------|
+| 3.3V       | 3.3V    |
+| GND        | GND     |
+| GPIO2 / D4 | RO      |
+| GPIO0 / D3 | RE      |
+| GPIO4 / D2 | DE      |
+| GPIO5 / D1 | DI      |
 
-
+RO should be connected using a voltage divider to avoid damaging the ESP8266.
 
 ## ADDRESSING
 

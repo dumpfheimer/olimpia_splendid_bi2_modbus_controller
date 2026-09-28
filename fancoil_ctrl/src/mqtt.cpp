@@ -65,8 +65,45 @@ void subscribeHelper(String subscribeTopic) {
     subscribeHelper(&subscribeTopic);
 }
 
+// --- PROGMEM variants -------------------------------------------------------
+//
+// Two problems with building topics as String concatenations of literals:
+// every literal is copied into RAM at boot (23KB of .rodata across the
+// firmware, on a chip with 80KB), and every concatenation allocates
+// temporaries on a heap whose low-water mark is already ~3.6KB - during the
+// discovery burst, which is exactly when the WiFi stack also wants memory.
+//
+// These build straight into the buffers that already exist, from a format
+// string that stays in flash. %s is clientId, %s is the fancoil address.
+// Passing an unused second argument is harmless.
+static void topicP(PGM_P fmt, const char *a1, const char *a2) {
+    snprintf_P(topicBuffer, TOPIC_BUFFER_SIZE, fmt, a1, a2);
+}
+
+static void publishP(PGM_P topicFmt, const char *a1, const char *a2, const char *payload, bool retain) {
+    if (topicBuffer == nullptr) return;
+    topicP(topicFmt, a1, a2);
+    client.publish(topicBuffer, payload, retain);
+}
+
+// publishes whatever sendHomeAssistantConfiguration() has already rendered
+// into messageBuffer
+static void publishBufferP(PGM_P topicFmt, const char *a1, const char *a2, bool retain) {
+    if (topicBuffer == nullptr || messageBuffer == nullptr) return;
+    topicP(topicFmt, a1, a2);
+    client.publish(topicBuffer, messageBuffer, retain);
+}
+
+static void subscribeP(PGM_P topicFmt, const char *a1, const char *a2) {
+    if (topicBuffer == nullptr) return;
+    topicP(topicFmt, a1, a2);
+    client.subscribe(topicBuffer);
+}
+
 void sendFancoilState(Fancoil *fancoil) {
     String addr = String(fancoil->getAddress());
+    const char *cid = clientId.c_str();
+    const char *ad = addr.c_str();
     String state;
 
     switch (fancoil->getSyncState()) {
@@ -88,7 +125,7 @@ void sendFancoilState(Fancoil *fancoil) {
             break;
     }
 
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/state/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/state/state"), cid, ad, state.c_str(), false);
 
     switch (fancoil->getSpeed()) {
         case FanSpeed::MAX:
@@ -104,7 +141,7 @@ void sendFancoilState(Fancoil *fancoil) {
             state = "auto";
             break;
     }
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/fan_speed/state"), cid, ad, state.c_str(), false);
 
     if (!fancoil->isOn()) {
         state = "off";
@@ -117,7 +154,7 @@ void sendFancoilState(Fancoil *fancoil) {
     } else {
         state = "auto";
     }
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/mode/state"), cid, ad, state.c_str(), false);
 
     if (!fancoil->isOn()) {
         state = "off";
@@ -130,35 +167,35 @@ void sendFancoilState(Fancoil *fancoil) {
     } else {
         state = "idle";
     }
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/action/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/action/state"), cid, ad, state.c_str(), false);
 
     state = fancoil->isOn() ? "ON" : "OFF";
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/on_off/state"), cid, ad, state.c_str(), false);
 
     state = fancoil->isSwingOn() ? "ON" : "OFF";
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/swing/state"), cid, ad, state.c_str(), false);
 
     state = String(fancoil->getSetpoint());
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/setpoint/state"), cid, ad, state.c_str(), false);
 
     state = String(fancoil->getAmbient());
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/ambient_temperature/state"), cid, ad, state.c_str(), false);
 
 #ifdef LOAD_AMBIENT_TEMP
     state = String(fancoil->getAmbientTemp());
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_sensor/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/ambient_sensor/state"), cid, ad, state.c_str(), false);
 #endif
 
 #ifdef LOAD_WATER_TEMP
     state = String(fancoil->getWaterTemp());
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/water_sensor/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/water_sensor/state"), cid, ad, state.c_str(), false);
 #endif
 
     state = fancoil->boilerOn() || fancoil->chillerOn() ? "ON" : "OFF";
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/is_consuming/state"), cid, ad, state.c_str(), false);
 
     state = fancoil->ev1On() ? "ON" : "OFF";
-    publishHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ev1/state", state, false);
+    publishP(PSTR("fancoil_ctrl/%s/%s/ev1/state"), cid, ad, state.c_str(), false);
 }
 
 void sendFancoilStates() {
@@ -174,17 +211,19 @@ void sendFancoilStates() {
 }
 
 void unconfigureHomeAssistantDevice(String addr, bool onlyExtra) {
+    const char *cid = clientId.c_str();
+    const char *ad = addr.c_str();
     // purge configuration
-    publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config", "", true);
-    publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config", "", true);
-    publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config", "", true);
-    publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config", "", true);
-    publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config", "", true);
-    publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_temperature/config", "", true);
-    if (!onlyExtra) publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
-    if (!onlyExtra) publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
-    if (!onlyExtra) publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config", "", true);
-    if (!onlyExtra) publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config", "", true);
+    publishP(PSTR("homeassistant/switch/%s-%s/on_off/config"), cid, ad, "", true);
+    publishP(PSTR("homeassistant/switch/%s-%s/swing/config"), cid, ad, "", true);
+    publishP(PSTR("homeassistant/select/%s-%s/mode/config"), cid, ad, "", true);
+    publishP(PSTR("homeassistant/select/%s-%s/fan_speed/config"), cid, ad, "", true);
+    publishP(PSTR("homeassistant/sensor/%s-%s/setpoint/config"), cid, ad, "", true);
+    publishP(PSTR("homeassistant/sensor/%s-%s/ambient_temperature/config"), cid, ad, "", true);
+    if (!onlyExtra) publishP(PSTR("homeassistant/sensor/%s-%s/water_sensor/config"), cid, ad, "", true);
+    if (!onlyExtra) publishP(PSTR("homeassistant/sensor/%s-%s/ambient_sensor/config"), cid, ad, "", true);
+    if (!onlyExtra) publishP(PSTR("homeassistant/binary_sensor/%s-%s/is_consuming/config"), cid, ad, "", true);
+    if (!onlyExtra) publishP(PSTR("homeassistant/sensor/%s-%s/state/config"), cid, ad, "", true);
 }
 
 // (re)subscribe to all fancoils' command topics - required on every MQTT
@@ -195,181 +234,175 @@ void subscribeFancoilTopics() {
     uint8_t walked = 0;
     while (e != nullptr && e->fancoil != nullptr && ++walked <= MAX_FANCOIL_LIST_WALK) {
         String addr = String(e->fancoil->getAddress());
-        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/on_off/set");
-        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/swing/set");
-        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/mode/set");
-        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set");
-        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set");
-        subscribeHelper("fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/set");
+        const char *cid = clientId.c_str();
+        const char *ad = addr.c_str();
+        subscribeP(PSTR("fancoil_ctrl/%s/%s/on_off/set"), cid, ad);
+        subscribeP(PSTR("fancoil_ctrl/%s/%s/swing/set"), cid, ad);
+        subscribeP(PSTR("fancoil_ctrl/%s/%s/mode/set"), cid, ad);
+        subscribeP(PSTR("fancoil_ctrl/%s/%s/fan_speed/set"), cid, ad);
+        subscribeP(PSTR("fancoil_ctrl/%s/%s/setpoint/set"), cid, ad);
+        subscribeP(PSTR("fancoil_ctrl/%s/%s/ambient_temperature/set"), cid, ad);
         e = e->next;
     }
+}
+
+
+// Every per-fancoil discovery config shares one skeleton; only the component,
+// the topic leaf, the display suffix, whether it accepts commands and an
+// optional tail differ. Rendering from a single PROGMEM template keeps one
+// copy of that skeleton in flash instead of ten near-identical literals in
+// RAM, and builds straight into messageBuffer - no String temporaries during
+// the burst, which is when the heap bottoms out.
+// `uid` is separate from `leaf` only because the "action" entity has always
+// published unique_id "..._mode"; kept as-is so existing HA entities are not
+// orphaned.
+static void publishEntityConfigP(PGM_P component, PGM_P leaf, PGM_P uid, PGM_P suffix,
+                                 const char *cid, const char *ad,
+                                 bool commandable, PGM_P tail) {
+    if (topicBuffer == nullptr || messageBuffer == nullptr) return;
+
+    char comp[16], lf[24], ui[24], sfx[24], tl[112];
+    strncpy_P(comp, component, sizeof(comp)); comp[sizeof(comp) - 1] = 0;
+    strncpy_P(lf, leaf, sizeof(lf));          lf[sizeof(lf) - 1] = 0;
+    strncpy_P(ui, uid, sizeof(ui));           ui[sizeof(ui) - 1] = 0;
+    strncpy_P(sfx, suffix, sizeof(sfx));      sfx[sizeof(sfx) - 1] = 0;
+    strncpy_P(tl, tail, sizeof(tl));          tl[sizeof(tl) - 1] = 0;
+
+    snprintf_P(messageBuffer, MESSAGE_BUFFER_SIZE,
+               PSTR("{\"~\": \"fancoil_ctrl/%s/%s/%s\", \"name\": \"Fancoil %s-%s %s\", "
+                    "\"unique_id\": \"fancoil_%s_%s_%s\", %s\"stat_t\": \"~/state\", "
+                    "\"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_%s_%s\", "
+                    "\"name\": \"Fancoil %s-%s\"}%s}"),
+               cid, ad, lf, cid, ad, sfx, cid, ad, ui,
+               commandable ? "\"cmd_t\": \"~/set\", " : "",
+               cid, ad, cid, ad, tl);
+
+    snprintf_P(topicBuffer, TOPIC_BUFFER_SIZE, PSTR("homeassistant/%s/%s-%s/%s/config"), comp, cid, ad, lf);
+    client.publish(topicBuffer, messageBuffer, true);
 }
 
 void sendHomeAssistantConfiguration() {
     if (!client.connected()) return;
 
+    const char *cid0 = clientId.c_str();
+
     // online
-    publishHelper("homeassistant/binary_sensor/" + clientId + "/online/config",
-                  "{\"~\": \"fancoil_ctrl/" + clientId + "/online\", \"name\": \"Fancoil controller " + clientId +
-                  " online\", \"unique_id\": \"fancoil_" + clientId +
-                  "_online\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                  clientId + "\", \"name\": \"Fancoil controller " + clientId + "\"}}", true);
+    snprintf_P(messageBuffer, MESSAGE_BUFFER_SIZE,
+               PSTR("{\"~\": \"fancoil_ctrl/%s/online\", \"name\": \"Fancoil controller %s online\", "
+                    "\"unique_id\": \"fancoil_%s_online\", \"stat_t\": \"~/state\", \"retain\": \"false\", "
+                    "\"device\": {\"identifiers\": \"fancoil_%s\", \"name\": \"Fancoil controller %s\"}}"),
+               cid0, cid0, cid0, cid0, cid0);
+    publishBufferP(PSTR("homeassistant/binary_sensor/%s/online/config"), cid0, "", true);
+
     // IP
-    publishHelper("homeassistant/sensor/" + clientId + "/ip/config",
-                  "{\"~\": \"fancoil_ctrl/" + clientId + "/ip\", \"name\": \"Fancoil controller " + clientId +
-                  " IP Address\", \"unique_id\": \"fancoil_" + clientId +
-                  "_ip\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                  clientId + "\", \"name\": \"Fancoil controller " + clientId + "\", \"cu\": \"http://" +
-                  WiFi.localIP().toString() + "/\"}}", true);
+    String ipStr = WiFi.localIP().toString();
+    snprintf_P(messageBuffer, MESSAGE_BUFFER_SIZE,
+               PSTR("{\"~\": \"fancoil_ctrl/%s/ip\", \"name\": \"Fancoil controller %s IP Address\", "
+                    "\"unique_id\": \"fancoil_%s_ip\", \"stat_t\": \"~/state\", \"retain\": \"false\", "
+                    "\"device\": {\"identifiers\": \"fancoil_%s\", \"name\": \"Fancoil controller %s\", "
+                    "\"cu\": \"http://%s/\"}}"),
+               cid0, cid0, cid0, cid0, cid0, ipStr.c_str());
+    publishBufferP(PSTR("homeassistant/sensor/%s/ip/config"), cid0, "", true);
 
 
     for (uint8_t addr_i = 1; addr_i <= 32; addr_i++) {
         String addr = String(addr_i);
+        const char *cid = clientId.c_str();
+        const char *ad = addr.c_str();
         Fancoil *fancoil = getFancoilByAddress(addr_i);
         if (fancoil != nullptr) {
             bool sendExtra = wifiMgrGetBoolConfig("HA_XTRA", false);
 
             if (sendExtra) {
-                // on / off
-                publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/on_off/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/on_off\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " on_off\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_on_off\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-
-                publishHelper("homeassistant/switch/" + clientId + "-" + addr + "/swing/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/swing\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " swing\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_swing\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-
-                //mode
-                publishHelper("homeassistant/select/" + clientId + "-" + addr + "/mode/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/mode\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_mode\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                              "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"auto\", \"off\"]}", true);
-
-                //action
-                publishHelper("homeassistant/select/" + clientId + "-" + addr + "/action/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/action\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " mode\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_mode\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                              "\"}, \"options\": [\"heat\", \"cool\", \"fan_only\", \"idle\", \"off\"]}", true);
-
-                //fan speed: auto, night, low, high
-                publishHelper("homeassistant/select/" + clientId + "-" + addr + "/fan_speed/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " fan speed\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_fan_speed\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                              "\"}, \"options\": [\"auto\", \"low\", \"high\", \"night\"]}", true);
-
-                // setpoint
-                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/setpoint/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/setpoint\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " setpoint\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_setpoint\", \"cmd_t\": \"~/set\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                              "\"}, \"unit_of_meas\": \"°C\"}", true);
-
-                // ambient temp
-                publishHelper("homeassistant/number/" + clientId + "-" + addr + "/ambient_temperature/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr +
-                              "/ambient_temperature\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                              " ambient temperature\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_ambient_temperature\", " + "\"cmd_t\": \"~/set\", " +
-                              "\"stat_t\": \"~/state\", \"retain\": \"false\", \"min\": 5, \"max\": 50, \"precision\": 0.1, \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                              "\"}, \"unit_of_meas\": \"°C\"}", true);
-
+                publishEntityConfigP(PSTR("switch"), PSTR("on_off"), PSTR("on_off"), PSTR("on_off"),
+                                     cid, ad, true, PSTR(""));
+                publishEntityConfigP(PSTR("switch"), PSTR("swing"), PSTR("swing"), PSTR("swing"),
+                                     cid, ad, true, PSTR(""));
+                publishEntityConfigP(PSTR("select"), PSTR("mode"), PSTR("mode"), PSTR("mode"),
+                                     cid, ad, true,
+                                     PSTR(", \"options\": [\"heat\", \"cool\", \"fan_only\", \"auto\", \"off\"]"));
+                publishEntityConfigP(PSTR("select"), PSTR("action"), PSTR("mode"), PSTR("mode"),
+                                     cid, ad, false,
+                                     PSTR(", \"options\": [\"heat\", \"cool\", \"fan_only\", \"idle\", \"off\"]"));
+                publishEntityConfigP(PSTR("select"), PSTR("fan_speed"), PSTR("fan_speed"), PSTR("fan speed"),
+                                     cid, ad, true,
+                                     PSTR(", \"options\": [\"auto\", \"low\", \"high\", \"night\"]"));
+                publishEntityConfigP(PSTR("sensor"), PSTR("setpoint"), PSTR("setpoint"), PSTR("setpoint"),
+                                     cid, ad, true, PSTR(", \"unit_of_meas\": \"\u00b0C\""));
+                publishEntityConfigP(PSTR("number"), PSTR("ambient_temperature"), PSTR("ambient_temperature"),
+                                     PSTR("ambient temperature"), cid, ad, true,
+                                     PSTR(", \"min\": 5, \"max\": 50, \"precision\": 0.1, \"unit_of_meas\": \"\u00b0C\""));
 #ifdef LOAD_AMBIENT_TEMP
-                // ambient temp sensor
-                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config",
-                "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/ambient_sensor\", \"name\": \"Fancoil " + clientId + "-" + addr + " ambient sensor\", \"unique_id\": \"fancoil_" + clientId + "_" + addr + "_ambient_sensor\", " + "\"cmd_t\": \"~/set\", " + "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" + clientId + "_" + addr +"\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}, \"unit_of_meas\": \"°C\"}", true);
+                publishEntityConfigP(PSTR("sensor"), PSTR("ambient_sensor"), PSTR("ambient_sensor"),
+                                     PSTR("ambient sensor"), cid, ad, true, PSTR(", \"unit_of_meas\": \"\u00b0C\""));
 #else
-                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/ambient_sensor/config", "", true);
+                publishP(PSTR("homeassistant/sensor/%s-%s/ambient_sensor/config"), cid, ad, "", true);
 #endif
-
-
-                // is consuming water
-                publishHelper("homeassistant/binary_sensor/" + clientId + "-" + addr + "/is_consuming/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/is_consuming\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " is consuming\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_is_consuming\", \"stat_t\": \"~/state\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
-
-
-                // state: info text
-                publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/state/config",
-                              "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/state\", \"name\": \"Fancoil " +
-                              clientId + "-" + addr + " state\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                              "_state\", \"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                              clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr + "\"}}", true);
+                publishEntityConfigP(PSTR("binary_sensor"), PSTR("is_consuming"), PSTR("is_consuming"),
+                                     PSTR("is consuming"), cid, ad, false, PSTR(""));
+                publishEntityConfigP(PSTR("sensor"), PSTR("state"), PSTR("state"), PSTR("state"),
+                                     cid, ad, false, PSTR(""));
             } else {
                 unconfigureHomeAssistantDevice(addr, true);
             }
 
 #ifdef LOAD_WATER_TEMP
-            // water temp sensor
-            publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config",
-                          "{\"~\": \"fancoil_ctrl/" + clientId + "/" + addr + "/water_sensor\", \"name\": \"Fancoil " +
-                          clientId + "-" + addr + " water sensor\", \"unique_id\": \"fancoil_" + clientId + "_" + addr +
-                          "_water_sensor\", " + "\"cmd_t\": \"~/set\", " +
-                          "\"stat_t\": \"~/state\", \"retain\": \"false\", \"device\": {\"identifiers\": \"fancoil_" +
-                          clientId + "_" + addr + "\", \"name\": \"Fancoil " + clientId + "-" + addr +
-                          "\"}, \"unit_of_meas\": \"°C\"}", true);
+            publishEntityConfigP(PSTR("sensor"), PSTR("water_sensor"), PSTR("water_sensor"),
+                                 PSTR("water sensor"), cid, ad, true, PSTR(", \"unit_of_meas\": \"\u00b0C\""));
 #else
-            publishHelper("homeassistant/sensor/" + clientId + "-" + addr + "/water_sensor/config", "", true);
+            publishP(PSTR("homeassistant/sensor/%s-%s/water_sensor/config"), cid, ad, "", true);
 #endif
-	    // hvac
-            doc["name"] = "Fancoil " + clientId + ":" + addr + "";
-            doc["icon"] = "mdi:home-thermometer-outline";
-            doc["send_if_off"] = "true";
-            doc["unique_id"] = "hvac_" + clientId + "_" + addr;
-            doc["availability_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/state/state";
-            doc["payload_available"] = "online";
-            doc["payload_not_available"] = "offline";
-            doc["mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/set";
-            doc["mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/mode/state";
-            doc["action_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/action/state";
-	        JsonArray modes = doc["modes"].to<JsonArray>();
-	        modes.add("heat");
-	        modes.add("cool");
-	        modes.add("off");
-            //doc["modes"] = ["heat", "cool", "off"];
-            doc["min_temp"] = "15";
-            doc["max_temp"] = "30";
-            doc["precision"] = 0.1;
-            doc["retain"] = "false";
-            doc["current_temperature_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/ambient_temperature/state";
-            doc["temperature_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/set";
-            doc["temperature_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/setpoint/state";
-            doc["temp_step"] = "0.5";
-            doc["fan_mode_command_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/set";
-            doc["fan_mode_state_topic"] = "fancoil_ctrl/" + clientId + "/" + addr + "/fan_speed/state";
-	        JsonArray fanModes = doc["fan_modes"];
-	        fanModes.add("auto");
-	        fanModes.add("high");
-	        fanModes.add("low");
-	        fanModes.add("night");
-            //doc["fan_modes"] = "auto, high, low, night";
-            JsonObject device  = doc["device"].to<JsonObject>();
-            device["name"] = "Fancoil " + clientId + "-" + addr + "";
-            //device["via_device"] = "Fancoil CTRL";
-            device["identifiers"] = "fancoil_" + clientId + "_" + addr + "";
+	    // hvac. Keys and literal values wrapped in F(): ArduinoJson copies
+	    // from flash, whereas a bare literal would sit in RAM for the life of
+	    // the firmware. Topic values are built with snprintf_P into a scratch
+	    // buffer - declared char* (not const) so ArduinoJson copies it rather
+	    // than storing a pointer into a buffer we immediately overwrite.
+            char t[TOPIC_BUFFER_SIZE];
+            #define TOPIC_P(fmt) (snprintf_P(t, sizeof(t), PSTR(fmt), cid, ad), (char *) t)
+
+            doc[F("name")] = String(F("Fancoil ")) + clientId + F(":") + addr;
+            doc[F("icon")] = F("mdi:home-thermometer-outline");
+            doc[F("send_if_off")] = F("true");
+            doc[F("unique_id")] = String(F("hvac_")) + clientId + F("_") + addr;
+            doc[F("availability_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/state/state");
+            doc[F("payload_available")] = F("online");
+            doc[F("payload_not_available")] = F("offline");
+            doc[F("mode_command_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/mode/set");
+            doc[F("mode_state_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/mode/state");
+            doc[F("action_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/action/state");
+            JsonArray modes = doc[F("modes")].to<JsonArray>();
+            modes.add(F("heat"));
+            modes.add(F("cool"));
+            modes.add(F("off"));
+            doc[F("min_temp")] = F("15");
+            doc[F("max_temp")] = F("30");
+            doc[F("precision")] = 0.1;
+            doc[F("retain")] = F("false");
+            doc[F("current_temperature_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/ambient_temperature/state");
+            doc[F("temperature_command_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/setpoint/set");
+            doc[F("temperature_state_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/setpoint/state");
+            doc[F("temp_step")] = F("0.5");
+            doc[F("fan_mode_command_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/fan_speed/set");
+            doc[F("fan_mode_state_topic")] = TOPIC_P("fancoil_ctrl/%s/%s/fan_speed/state");
+            JsonArray fanModes = doc[F("fan_modes")].to<JsonArray>();
+            fanModes.add(F("auto"));
+            fanModes.add(F("high"));
+            fanModes.add(F("low"));
+            fanModes.add(F("night"));
+            JsonObject device = doc[F("device")].to<JsonObject>();
+            device[F("name")] = String(F("Fancoil ")) + clientId + F("-") + addr;
+            device[F("identifiers")] = String(F("fancoil_")) + clientId + F("_") + addr;
 
             const char *manufacturer = wifiMgrGetConfig("HA_MAN");
-            if (manufacturer != nullptr) device["manufacturer"] = manufacturer;
+            if (manufacturer != nullptr) device[F("manufacturer")] = manufacturer;
             const char *model = wifiMgrGetConfig("HA_MOD");
-            if (model != nullptr) device["model"] = model;
-            device["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
+            if (model != nullptr) device[F("model")] = model;
+            device[F("configuration_url")] = String(F("http://")) + WiFi.localIP().toString() + F("/");
 
             serializeJson(doc, messageBuffer, MESSAGE_BUFFER_SIZE);
-	        sendMessageBufferTo("homeassistant/climate/" + clientId + "-" + addr + "/config", true);
-	        doc.clear();
+            publishBufferP(PSTR("homeassistant/climate/%s-%s/config"), cid, ad, true);
+            doc.clear();
+            #undef TOPIC_P
 
             sendFancoilState(fancoil);
 
@@ -465,13 +498,23 @@ void mqttHandleMessage(char *topic, byte *payload, unsigned int length) {
 }
 
 unsigned long lastConnectTry = 0;
+// Retry interval, grown on each failure. client.connect() BLOCKS - up to the
+// WiFiClient timeout for the TCP handshake, then up to the PubSubClient socket
+// timeout waiting for CONNACK - and nothing else runs meanwhile: no web server,
+// no fancoil loop. With the interval measured from the START of the attempt, a
+// 5s connect already consumed the 5s gap, so a dead broker put the device back
+// into connect() immediately and kept it there ~permanently. Timing the gap
+// from the END of the attempt plus backing off keeps the controller responsive
+// and the fancoils serviced while the broker is away.
+unsigned long mqttRetryInterval = 5000;
+#define MQTT_RETRY_MIN 5000
+#define MQTT_RETRY_MAX 60000
 
 void mqttReconnect() {
-    if ((millis() - lastConnectTry) > 5000) {
+    if ((millis() - lastConnectTry) > mqttRetryInterval) {
         if (!WiFi.isConnected()) return;
         if (client.connected()) return;
 
-        lastConnectTry = millis();
         debugPrint("Reconnecting...");
         String lastWillTopic = "fancoil_ctrl/" + clientId + "/online/state";
         lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
@@ -482,6 +525,10 @@ void mqttReconnect() {
         const char* pass = wifiMgrGetConfig("MQTT_PASS");
         if (user == nullptr || pass == nullptr) {
             debugPrintln("No mqtt user and password");
+            // no credentials is a configuration state, not a transient
+            // failure: re-arm the timer so this does not re-run (and re-log)
+            // on every single main loop pass
+            lastConnectTry = millis();
             return;
         } else {
             debugPrintln("MQTT user");
@@ -491,11 +538,17 @@ void mqttReconnect() {
 
         bool connected = client.connect(WiFi.getHostname(), user, pass, topicBuffer, true, true, "OFF");
 #endif
+        // measured from here: the attempt above blocked for an unknown time
+        lastConnectTry = millis();
+
         if (!connected) {
             debugPrint("failed, rc=");
             debugPrint(client.state());
+            mqttRetryInterval *= 2;
+            if (mqttRetryInterval > MQTT_RETRY_MAX) mqttRetryInterval = MQTT_RETRY_MAX;
         } else {
             debugPrint("success");
+            mqttRetryInterval = MQTT_RETRY_MIN;
             subscribeFancoilTopics();
             lastWillTopic.toCharArray(topicBuffer, TOPIC_BUFFER_SIZE);
             client.publish(topicBuffer, "ON", true);
@@ -544,6 +597,15 @@ void setupMqtt() {
         clientId = WiFi.macAddress();
         clientId.replace(":", "-");
         client.setBufferSize(MESSAGE_BUFFER_SIZE);
+
+        // Bound how long a failing connect can freeze the main loop. Defaults
+        // are 5s for the TCP handshake (WiFiClient) and 15s waiting for
+        // CONNACK (MQTT_SOCKET_TIMEOUT) - up to 20s per attempt during which
+        // the web server and the fancoil state machines do not run at all. A
+        // broker on the LAN answers in milliseconds; anything slower is a
+        // failure worth reporting quickly rather than waiting out.
+        wifiClient.setTimeout(1500);
+        client.setSocketTimeout(3);
 
 #ifndef MQTT_HOST
     }

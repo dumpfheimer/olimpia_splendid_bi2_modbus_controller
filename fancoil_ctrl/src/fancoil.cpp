@@ -831,7 +831,13 @@ void Fancoil::loop(Stream *stream) {
     // dead unit every pass monopolizes the bus, delays WiFi/MQTT servicing
     // and floods the error counters. Probe with a single read per backoff
     // period instead; one success resumes normal operation immediately.
-    if (consecutiveFailures >= 3) {
+    // A unit that has not answered ONCE since boot backs off immediately: the
+    // usual 3-strikes grace exists so a running unit survives a burst of bus
+    // noise, but a never-seen address has no state worth protecting and is
+    // most likely vacant (mistyped address, unit removed, stale EEPROM entry).
+    // Paying 3 full timeout rounds per pass for it starves everything else.
+    uint8_t failureBudget = (lastRead == 0) ? 1 : 3;
+    if (consecutiveFailures >= failureBudget) {
         if ((millis() - lastCommAttempt) < backoffPeriod) return;
         readState(stream);
         return;

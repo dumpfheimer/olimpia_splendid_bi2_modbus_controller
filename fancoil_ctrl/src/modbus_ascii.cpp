@@ -77,7 +77,29 @@ void setupModbus() {
     incomingMessage = &message;
 }
 
+// Detach/attach the SoftwareSerial receive interrupt in step with RE.
+//
+// While the transceiver's receiver is disabled its RO output is high-Z, so the
+// ESP's RX pin is held only by whatever passive network is on it. On a board
+// with a level-shifting divider that lands at ~1V - between VIL (0.83V) and
+// VIH (2.48V), i.e. in the undefined band, where the input buffer oscillates.
+// SoftwareSerial arms a pin-change interrupt on that pin at begin(), so an
+// undefined level means an interrupt storm: the CPU is starved, the soft
+// watchdog fires, and the board reboots in a loop that looks like a freeze
+// from outside.
+//
+// Nothing can legitimately arrive while RE is high, so detaching the interrupt
+// there costs nothing and makes the idle pin level irrelevant.
+static inline void modbusRxInterrupt(bool on) {
+#if defined(MODBUS_SOFTWARE_SERIAL)
+    MODBUS_SERIAL.enableRx(on);
+#else
+    (void) on;   // hardware UART has no pin-change ISR to leave armed
+#endif
+}
+
 void preTransmission() {
+    modbusRxInterrupt(false);
     digitalWrite(READ_ENABLE_PIN, 1);
     digitalWrite(DRIVER_ENABLE_PIN, 1);
 }
@@ -89,9 +111,12 @@ void postTransmission() {
 void preReceive() {
     digitalWrite(DRIVER_ENABLE_PIN, 0);
     digitalWrite(READ_ENABLE_PIN, 0);
+    // RO now drives the pin, so the level is defined again
+    modbusRxInterrupt(true);
 }
 
 void postReceive() {
+    modbusRxInterrupt(false);
     digitalWrite(READ_ENABLE_PIN, 1);
 }
 
@@ -305,8 +330,17 @@ IncomingMessage *modbusWrite(Stream *stream, byte address, byte functionCode, by
 
     // discard unconsumed bytes from an earlier transaction (e.g. a response
     // that arrived after its read had already timed out) so they cannot be
-    // parsed as this transaction's response
-    while (stream->available()) stream->read();
+    // parsed as this transaction's response.
+    // Time-boxed on purpose: SoftwareSerial::read() never yields and
+    // available() only yields once the buffer has run dry, so an unbounded
+    // drain here spins without ever feeding the SDK. A receiver looking at an
+    // unbiased idle bus emits bytes forever (RO chatters), which turned this
+    // into a soft-WDT reset. 20ms is far more than a stale frame needs.
+    unsigned long drainStart = millis();
+    while (stream->available() && (millis() - drainStart) < 20) {
+        stream->read();
+        yield();
+    }
 
     preTransmission();
 

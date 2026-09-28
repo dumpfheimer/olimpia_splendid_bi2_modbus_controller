@@ -90,6 +90,27 @@ void sendPartial(const String &s) {
 
 // starts a chunked streaming response; append with sendPartial(), terminate
 // with sendPartialEnd()
+void sendPartial(const __FlashStringHelper *s) {
+    // Flash variant: the UI is ~200 literal fragments, and on this chip every
+    // literal is copied into RAM at boot unless it is kept in PROGMEM.
+    PGM_P src = reinterpret_cast<PGM_P>(s);
+    size_t l = strlen_P(src);
+    if (partialLen + l > sizeof(partialBuf)) sendPartialFlush();
+    if (l >= sizeof(partialBuf)) {
+        // fragment larger than the buffer goes out directly, in chunks
+        char tmp[128];
+        while (l > 0) {
+            size_t n = l < sizeof(tmp) ? l : sizeof(tmp);
+            memcpy_P(tmp, src, n);
+            server.sendContent(tmp, n);
+            src += n;
+            l -= n;
+        }
+        return;
+    }
+    memcpy_P(partialBuf + partialLen, src, l);
+    partialLen += l;
+}
 void sendPartialBegin(int code, const char *contentType) {
     partialLen = 0;
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -106,190 +127,193 @@ void handleRoot() {
     sendPartialBegin(200, "text/html");
     
     // HTML header
-    sendPartial("<!DOCTYPE html>");
-    sendPartial("<html lang=\"en\">");
-    sendPartial("<head>");
-    sendPartial("    <meta charset=\"UTF-8\">");
-    sendPartial("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
-    sendPartial("    <title>Fancoil Controller</title>");
-    sendPartial("    <link rel=\"stylesheet\" href=\"/styles.css\">");
-    sendPartial("</head>");
-    sendPartial("<body>");
+    sendPartial(F("<!DOCTYPE html>"));
+    sendPartial(F("<html lang=\"en\">"));
+    sendPartial(F("<head>"));
+    sendPartial(F("    <meta charset=\"UTF-8\">"));
+    sendPartial(F("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"));
+    sendPartial(F("    <title>Fancoil Controller</title>"));
+    sendPartial(F("    <link rel=\"stylesheet\" href=\"/styles.css\">"));
+    sendPartial(F("</head>"));
+    sendPartial(F("<body>"));
     
     // Header
-    sendPartial("    <div class=\"header\">");
-    sendPartial("        <div class=\"container header-content\">");
-    sendPartial("            <h1>Fancoil Controller</h1>");
-    sendPartial("            <div>");
-    sendPartial("                <a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\" class=\"btn\">GitHub</a>");
-    sendPartial("                <a href=\"/wifiMgr/configure\" class=\"btn\">WiFi & MQTT</a>");
-    sendPartial("            </div>");
-    sendPartial("        </div>");
-    sendPartial("    </div>");
+    sendPartial(F("    <div class=\"header\">"));
+    sendPartial(F("        <div class=\"container header-content\">"));
+    sendPartial(F("            <h1>Fancoil Controller</h1>"));
+    sendPartial(F("            <div>"));
+    sendPartial(F("                <a href=\"https://github.com/dumpfheimer/olimpia_splendid_bi2_modbus_controller\" class=\"btn\">GitHub</a>"));
+    sendPartial(F("                <a href=\"/wifiMgr/configure\" class=\"btn\">WiFi & MQTT</a>"));
+    sendPartial(F("            </div>"));
+    sendPartial(F("        </div>"));
+    sendPartial(F("    </div>"));
     
 
     // Navigation
-    sendPartial("    <div class=\"nav\">");
-    sendPartial("        <div class=\"container\">");
-    sendPartial("            <ul class=\"nav-list\">");
-    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link active\" data-tab=\"dashboard\">Dashboard</button></li>");
-    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"settings\">Settings</button></li>");
-    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"statistics\">Statistics</button></li>");
-    sendPartial("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"debug\">Debug</button></li>");
-    sendPartial("            </ul>");
-    sendPartial("        </div>");
-    sendPartial("    </div>");
+    sendPartial(F("    <div class=\"nav\">"));
+    sendPartial(F("        <div class=\"container\">"));
+    sendPartial(F("            <ul class=\"nav-list\">"));
+    sendPartial(F("                <li class=\"nav-item\"><button class=\"nav-link tab-link active\" data-tab=\"dashboard\">Dashboard</button></li>"));
+    sendPartial(F("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"settings\">Settings</button></li>"));
+    sendPartial(F("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"statistics\">Statistics</button></li>"));
+    sendPartial(F("                <li class=\"nav-item\"><button class=\"nav-link tab-link\" data-tab=\"debug\">Debug</button></li>"));
+    sendPartial(F("            </ul>"));
+    sendPartial(F("        </div>"));
+    sendPartial(F("    </div>"));
     
     // Main container
-    sendPartial("    <div class=\"container mt-2\">");
+    sendPartial(F("    <div class=\"container mt-2\">"));
     
     // Messages
-    sendPartial("        <div id=\"error-message\" style=\"display: none;\" class=\"card\">");
-    sendPartial("            <div class=\"card-content\" style=\"background-color: var(--error-color); color: white;\"></div>");
-    sendPartial("        </div>");
-    sendPartial("        <div id=\"success-message\" style=\"display: none;\" class=\"card\">");
-    sendPartial("            <div class=\"card-content\" style=\"background-color: var(--success-color); color: white;\"></div>");
-    sendPartial("        </div>");
+    sendPartial(F("        <div id=\"error-message\" style=\"display: none;\" class=\"card\">"));
+    sendPartial(F("            <div class=\"card-content\" style=\"background-color: var(--error-color); color: white;\"></div>"));
+    sendPartial(F("        </div>"));
+    sendPartial(F("        <div id=\"success-message\" style=\"display: none;\" class=\"card\">"));
+    sendPartial(F("            <div class=\"card-content\" style=\"background-color: var(--success-color); color: white;\"></div>"));
+    sendPartial(F("        </div>"));
     
     // Dashboard Tab
-    sendPartial("        <div id=\"dashboard-content\" class=\"tab-content active\">");
-    sendPartial("            <div class=\"loading\"></div>");
-    sendPartial("        </div>");
+    sendPartial(F("        <div id=\"dashboard-content\" class=\"tab-content active\">"));
+    sendPartial(F("            <div class=\"loading\"></div>"));
+    sendPartial(F("        </div>"));
     
 
     // Settings Tab
-    sendPartial("        <div id=\"settings-content\" class=\"tab-content\">");
+    sendPartial(F("        <div id=\"settings-content\" class=\"tab-content\">"));
     
     // Register Fancoil
-    sendPartial("            <div class=\"card mb-2\">");
-    sendPartial("                <div class=\"card-header\">Register Fancoil</div>");
-    sendPartial("                <div class=\"card-content\">");
-    sendPartial("                    <div class=\"form-group\">");
-    sendPartial("                        <label class=\"form-label\">Fancoil Address (1-32)</label>");
-    sendPartial("                        <input type=\"number\" min=\"1\" max=\"32\" id=\"register-address\" class=\"form-control\">");
-    sendPartial("                    </div>");
-    sendPartial("                    <button class=\"btn\" onclick=\"registerFancoil()\">Register</button>");
-    sendPartial("                </div>");
-    sendPartial("            </div>");
+    sendPartial(F("            <div class=\"card mb-2\">"));
+    sendPartial(F("                <div class=\"card-header\">Register Fancoil</div>"));
+    sendPartial(F("                <div class=\"card-content\">"));
+    sendPartial(F("                    <div class=\"form-group\">"));
+    sendPartial(F("                        <label class=\"form-label\">Fancoil Address (1-32)</label>"));
+    sendPartial(F("                        <input type=\"number\" min=\"1\" max=\"32\" id=\"register-address\" class=\"form-control\">"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                    <button class=\"btn\" onclick=\"registerFancoil()\">Register</button>"));
+    sendPartial(F("                </div>"));
+    sendPartial(F("            </div>"));
     
 
     // Unregister Fancoil
-    sendPartial("            <div class=\"card mb-2\">");
-    sendPartial("                <div class=\"card-header\">Unregister Fancoil</div>");
-    sendPartial("                <div class=\"card-content\">");
-    sendPartial("                    <div class=\"form-group\">");
-    sendPartial("                        <label class=\"form-label\">Fancoil Address (1-32)</label>");
-    sendPartial("                        <input type=\"number\" min=\"1\" max=\"32\" id=\"unregister-address\" class=\"form-control\">");
-    sendPartial("                    </div>");
-    sendPartial("                    <button class=\"btn\" onclick=\"unregisterFancoil()\">Unregister</button>");
-    sendPartial("                </div>");
-    sendPartial("            </div>");
+    sendPartial(F("            <div class=\"card mb-2\">"));
+    sendPartial(F("                <div class=\"card-header\">Unregister Fancoil</div>"));
+    sendPartial(F("                <div class=\"card-content\">"));
+    sendPartial(F("                    <div class=\"form-group\">"));
+    sendPartial(F("                        <label class=\"form-label\">Fancoil Address (1-32)</label>"));
+    sendPartial(F("                        <input type=\"number\" min=\"1\" max=\"32\" id=\"unregister-address\" class=\"form-control\">"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                    <button class=\"btn\" onclick=\"unregisterFancoil()\">Unregister</button>"));
+    sendPartial(F("                </div>"));
+    sendPartial(F("            </div>"));
     
 
     // Change Address
-    sendPartial("            <div class=\"card mb-2\">");
-    sendPartial("                <div class=\"card-header\">Change Fancoil Address</div>");
-    sendPartial("                <div class=\"card-content\">");
+    sendPartial(F("            <div class=\"card mb-2\">"));
+    sendPartial(F("                <div class=\"card-header\">Change Fancoil Address</div>"));
+    sendPartial(F("                <div class=\"card-content\">"));
     // options are populated client-side by scripts.js (populateAddressSelects):
     // generating 64 <option> elements here pushed the page String past what
     // the heap can reliably serve
-    sendPartial("                    <div class=\"form-group\">");
-    sendPartial("                        <label class=\"form-label\">Source Address</label>");
-    sendPartial("                        <select id=\"source-address\" class=\"form-select\">");
-    sendPartial("                            <option value=\"\" selected disabled>select...</option>");
-    sendPartial("                        </select>");
-    sendPartial("                    </div>");
-    sendPartial("                    <div class=\"form-group\">");
-    sendPartial("                        <label class=\"form-label\">Target Address</label>");
-    sendPartial("                        <select id=\"target-address\" class=\"form-select\">");
-    sendPartial("                            <option value=\"\" selected disabled>select...</option>");
-    sendPartial("                        </select>");
-    sendPartial("                    </div>");
-    sendPartial("                    <button class=\"btn\" onclick=\"changeFancoilAddress()\">Change Address</button>");
-    sendPartial("                </div>");
-    sendPartial("            </div>");
-    sendPartial("");
+    sendPartial(F("                    <div class=\"form-group\">"));
+    sendPartial(F("                        <label class=\"form-label\">Source Address</label>"));
+    sendPartial(F("                        <select id=\"source-address\" class=\"form-select\">"));
+    sendPartial(F("                            <option value=\"\" selected disabled>select...</option>"));
+    sendPartial(F("                        </select>"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                    <div class=\"form-group\">"));
+    sendPartial(F("                        <label class=\"form-label\">Target Address</label>"));
+    sendPartial(F("                        <select id=\"target-address\" class=\"form-select\">"));
+    sendPartial(F("                            <option value=\"\" selected disabled>select...</option>"));
+    sendPartial(F("                        </select>"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                    <button class=\"btn\" onclick=\"changeFancoilAddress()\">Change Address</button>"));
+    sendPartial(F("                </div>"));
+    sendPartial(F("            </div>"));
+    sendPartial(F(""));
 
     // Remote Control (rE)
-    sendPartial("            <div class=\"card mb-2\">");
-    sendPartial("                <div class=\"card-header\">Remote Control (rE)</div>");
-    sendPartial("                <div class=\"card-content\">");
-    sendPartial("                    <p class=\"mb-1\">Sets the unit's remote-enable flag (register 224 bit 2). A unit without it runs its own thermostat and ignores this controller.</p>");
-    sendPartial("                    <div class=\"form-group\">");
-    sendPartial("                        <label class=\"form-label\">Fancoil Address</label>");
-    sendPartial("                        <select id=\"remote-address\" class=\"form-select\">");
-    sendPartial("                            <option value=\"\" selected disabled>select...</option>");
-    sendPartial("                        </select>");
-    sendPartial("                    </div>");
-    sendPartial("                    <div class=\"btn-group\">");
-    sendPartial("                        <button class=\"btn\" onclick=\"setRemoteEnable(true)\">Enable Remote</button>");
-    sendPartial("                        <button class=\"btn btn-warning\" onclick=\"setRemoteEnable(false)\">Disable Remote</button>");
-    sendPartial("                    </div>");
-    sendPartial("                </div>");
-    sendPartial("            </div>");
+    sendPartial(F("            <div class=\"card mb-2\">"));
+    sendPartial(F("                <div class=\"card-header\">Remote Control (rE)</div>"));
+    sendPartial(F("                <div class=\"card-content\">"));
+    sendPartial(F("                    <p class=\"mb-1\">Sets the unit's remote-enable flag (register 224 bit 2). A unit without it runs its own thermostat and ignores this controller.</p>"));
+    sendPartial(F("                    <div class=\"form-group\">"));
+    sendPartial(F("                        <label class=\"form-label\">Fancoil Address</label>"));
+    sendPartial(F("                        <select id=\"remote-address\" class=\"form-select\">"));
+    sendPartial(F("                            <option value=\"\" selected disabled>select...</option>"));
+    sendPartial(F("                        </select>"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                    <div class=\"btn-group\">"));
+    sendPartial(F("                        <button class=\"btn\" onclick=\"setRemoteEnable(true)\">Enable Remote</button>"));
+    sendPartial(F("                        <button class=\"btn btn-warning\" onclick=\"setRemoteEnable(false)\">Disable Remote</button>"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                </div>"));
+    sendPartial(F("            </div>"));
     
 
     // Refresh Rate
-    sendPartial("            <div class=\"card mb-2\">");
-    sendPartial("                <div class=\"card-header\">Auto Refresh</div>");
-    sendPartial("                <div class=\"card-content\">");
-    sendPartial("                    <div class=\"form-group\">");
-    sendPartial("                        <label class=\"form-label\">Refresh Rate</label>");
-    sendPartial("                        <select id=\"refresh-rate\" class=\"form-select\">");
-    sendPartial("                            <option value=\"5000\">5 seconds</option>");
-    sendPartial("                            <option value=\"10000\" selected>10 seconds</option>");
-    sendPartial("                            <option value=\"30000\">30 seconds</option>");
-    sendPartial("                            <option value=\"60000\">1 minute</option>");
-    sendPartial("                        </select>");
-    sendPartial("                    </div>");
-    sendPartial("                </div>");
-    sendPartial("            </div>");
+    sendPartial(F("            <div class=\"card mb-2\">"));
+    sendPartial(F("                <div class=\"card-header\">Auto Refresh</div>"));
+    sendPartial(F("                <div class=\"card-content\">"));
+    sendPartial(F("                    <div class=\"form-group\">"));
+    sendPartial(F("                        <label class=\"form-label\">Refresh Rate</label>"));
+    sendPartial(F("                        <select id=\"refresh-rate\" class=\"form-select\">"));
+    sendPartial(F("                            <option value=\"5000\">5 seconds</option>"));
+    sendPartial(F("                            <option value=\"10000\" selected>10 seconds</option>"));
+    sendPartial(F("                            <option value=\"30000\">30 seconds</option>"));
+    sendPartial(F("                            <option value=\"60000\">1 minute</option>"));
+    sendPartial(F("                        </select>"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                </div>"));
+    sendPartial(F("            </div>"));
     
     // Factory Reset
-    sendPartial("            <div class=\"card\">");
-    sendPartial("                <div class=\"card-header\">Factory Reset</div>");
-    sendPartial("                <div class=\"card-content\">");
-    sendPartial("                    <p class=\"mb-1\">This will remove all registered fancoils.</p>");
-    sendPartial("                    <button class=\"btn btn-danger\" onclick=\"factoryReset()\">Factory Reset</button>");
-    sendPartial("                </div>");
-    sendPartial("            </div>");
-    sendPartial("        </div>");
+    sendPartial(F("            <div class=\"card\">"));
+    sendPartial(F("                <div class=\"card-header\">Factory Reset</div>"));
+    sendPartial(F("                <div class=\"card-content\">"));
+    sendPartial(F("                    <p class=\"mb-1\">This will remove all registered fancoils.</p>"));
+    sendPartial(F("                    <button class=\"btn btn-danger\" onclick=\"factoryReset()\">Factory Reset</button>"));
+    sendPartial(F("                </div>"));
+    sendPartial(F("            </div>"));
+    sendPartial(F("        </div>"));
     
 
     // Statistics Tab
-    sendPartial("        <div id=\"statistics-content\" class=\"tab-content\">");
-    sendPartial("            <div class=\"loading\"></div>");
-    sendPartial("        </div>");
+    sendPartial(F("        <div id=\"statistics-content\" class=\"tab-content\">"));
+    sendPartial(F("            <div class=\"loading\"></div>"));
+    sendPartial(F("        </div>"));
     
     // Debug Tab
-    sendPartial("        <div id=\"debug-content\" class=\"tab-content\">");
-    sendPartial("            <div class=\"card\">");
-    sendPartial("                <div class=\"card-header\">Debug</div>");
-    sendPartial("                <div class=\"card-content\">");
-    sendPartial("                    <div class=\"form-group\">");
-    sendPartial("                        <label class=\"form-label\">Fancoil Address</label>");
-    sendPartial("                        <input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\" class=\"form-control\">");
-    sendPartial("                    </div>");
-    sendPartial("                    <div class=\"btn-group\">");
-    sendPartial("                        <button class=\"btn\" onclick=\"debug()\">Debug</button>");
-    sendPartial("                        <button class=\"btn\" onclick=\"debug(quickDebugRegs)\">Quick Debug</button>");
-    sendPartial("                    </div>");
-    sendPartial("                    <div id=\"debugOut\" class=\"mt-2\"></div>");
-    sendPartial("                </div>");
-    sendPartial("            </div>");
-    sendPartial("        </div>");
-    sendPartial("    </div>");
+    sendPartial(F("        <div id=\"debug-content\" class=\"tab-content\">"));
+    sendPartial(F("            <div class=\"card\">"));
+    sendPartial(F("                <div class=\"card-header\">Debug</div>"));
+    sendPartial(F("                <div class=\"card-content\">"));
+    sendPartial(F("                    <div class=\"form-group\">"));
+    sendPartial(F("                        <label class=\"form-label\">Fancoil Address</label>"));
+    sendPartial(F("                        <input type=\"number\" min=\"0\" max=\"32\" id=\"debugAddress\" class=\"form-control\">"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                    <div class=\"btn-group\">"));
+    sendPartial(F("                        <button class=\"btn\" onclick=\"debug()\">Debug</button>"));
+    sendPartial(F("                        <button class=\"btn\" onclick=\"debug(quickDebugRegs)\">Quick Debug</button>"));
+    sendPartial(F("                    </div>"));
+    sendPartial(F("                    <div id=\"debugOut\" class=\"mt-2\"></div>"));
+    sendPartial(F("                </div>"));
+    sendPartial(F("            </div>"));
+    sendPartial(F("        </div>"));
+    sendPartial(F("    </div>"));
     
     // Footer
-    sendPartial("    <script src=\"/scripts.js\"></script>");
-    sendPartial("</body>");
-    sendPartial("</html>");
+    sendPartial(F("    <script src=\"/scripts.js\"></script>"));
+    sendPartial(F("</body>"));
+    sendPartial(F("</html>"));
 
     sendPartialEnd();
 }
 
 void handleUptime() {
     String ret = String(millis() / 1000);
+    // which wiring this binary was built for - so a device can be asked
+    // rather than assumed before an OTA push (ota_update.sh checks this)
+    ret += "\nboard: " BOARD_NAME;
 #if defined(ESP8266)
     ret += "\nreset reason: " + ESP.getResetReason();
     ret += "\nreset info: " + ESP.getResetInfo();
@@ -297,6 +321,11 @@ void handleUptime() {
     ret += "\nheap low-water mark: " + String(heapLowWaterMark);
     ret += "\nmax free block: " + String(ESP.getMaxFreeBlockSize());
     ret += "\nheap fragmentation: " + String(ESP.getHeapFragmentation());
+    // supply rail: a sag here is invisible in every other counter, and is the
+    // difference between "browned out" and "crashed on a healthy rail"
+    ret += "\nvcc: " + String(vccNow);
+    ret += "\nvcc min (this boot): " + String(vccMinThisBoot);
+    ret += "\nvcc min (across resets): " + String(vccMinAcrossResets);
 #elif defined(ESP32)
     ret += "\nreset reason: " + String(esp_reset_reason());
     ret += "\nfree heap: " + String(ESP.getFreeHeap());
@@ -320,7 +349,7 @@ void handleGet() {
         server.send(404, "text/plain", "address not registered");
     } else {
         sendPartialBegin(200, "application/json");
-        sendPartial("{");
+        sendPartial(F("{"));
         // decimal! this used to print HEX (address 17 displayed as "11"),
         // which repeatedly confused address diagnostics
         sendPartial("\"address\": " + String(fancoil->getAddress()) + ",");
@@ -328,115 +357,115 @@ void handleGet() {
         sendPartial("\"ambient\": " + String(fancoil->getAmbient()) + ",");
 
         if (fancoil->hasValidDesiredState) {
-            sendPartial("\"hasValidDesiredState\": true, ");
+            sendPartial(F("\"hasValidDesiredState\": true, "));
         } else {
-            sendPartial("\"hasValidDesiredState\": false, ");
+            sendPartial(F("\"hasValidDesiredState\": false, "));
         }
 
         if (fancoil->wantsToRead()) {
-            sendPartial("\"wantsToRead\": true, ");
+            sendPartial(F("\"wantsToRead\": true, "));
         } else {
-            sendPartial("\"wantsToRead\": false, ");
+            sendPartial(F("\"wantsToRead\": false, "));
         }
 
         if (fancoil->wantsToWrite()) {
-            sendPartial("\"wantsToWrite\": true, ");
+            sendPartial(F("\"wantsToWrite\": true, "));
         } else {
-            sendPartial("\"wantsToWrite\": false, ");
+            sendPartial(F("\"wantsToWrite\": false, "));
         }
 
         if (fancoil->isOn()) {
-            sendPartial("\"on\": true, ");
+            sendPartial(F("\"on\": true, "));
         } else {
-            sendPartial("\"on\": false, ");
+            sendPartial(F("\"on\": false, "));
         }
 
         switch (fancoil->getSpeed()) {
             case FanSpeed::MAX:
-                sendPartial("\"speed\": \"MAX\", ");
+                sendPartial(F("\"speed\": \"MAX\", "));
                 break;
             case FanSpeed::NIGHT:
-                sendPartial("\"speed\": \"NIGHT\", ");
+                sendPartial(F("\"speed\": \"NIGHT\", "));
                 break;
             case FanSpeed::MIN:
-                sendPartial("\"speed\": \"MIN\", ");
+                sendPartial(F("\"speed\": \"MIN\", "));
                 break;
             case FanSpeed::AUTOMATIC:
-                sendPartial("\"speed\": \"AUTOMATIC\", ");
+                sendPartial(F("\"speed\": \"AUTOMATIC\", "));
                 break;
         }
 
         if (fancoil->getMode() == Mode::FAN_ONLY) {
-            sendPartial("\"mode\": \"FAN_ONLY\", ");
+            sendPartial(F("\"mode\": \"FAN_ONLY\", "));
         } else if (fancoil->getMode() == Mode::COOLING) {
-            sendPartial("\"mode\": \"COOLING\", ");
+            sendPartial(F("\"mode\": \"COOLING\", "));
         } else if (fancoil->getMode() == Mode::HEATING) {
-            sendPartial("\"mode\": \"HEATING\", ");
+            sendPartial(F("\"mode\": \"HEATING\", "));
         } else {
-            sendPartial("\"mode\": \"AUTO\", ");
+            sendPartial(F("\"mode\": \"AUTO\", "));
         }
 
         if (fancoil->ambientTemperatureIsValid()) {
-            sendPartial("\"ambientTemperatureIsValid\": true, ");
+            sendPartial(F("\"ambientTemperatureIsValid\": true, "));
         } else {
-            sendPartial("\"ambientTemperatureIsValid\": false, ");
+            sendPartial(F("\"ambientTemperatureIsValid\": false, "));
         }
 
         if (fancoil->readTimeout()) {
-            sendPartial("\"readTimeout\": true, ");
+            sendPartial(F("\"readTimeout\": true, "));
         } else {
-            sendPartial("\"readTimeout\": false, ");
+            sendPartial(F("\"readTimeout\": false, "));
         }
 
         if (fancoil->isCollisionSuspected()) {
-            sendPartial("\"collisionSuspected\": true, ");
+            sendPartial(F("\"collisionSuspected\": true, "));
         } else {
-            sendPartial("\"collisionSuspected\": false, ");
+            sendPartial(F("\"collisionSuspected\": false, "));
         }
         sendPartial("\"collisionSuspicionCount\": " + String(fancoil->getCollisionSuspicionCount()) + ", ");
         sendPartial("\"consecutiveFailures\": " + String(fancoil->getConsecutiveFailures()) + ", ");
 
         if (fancoil->isLocalModeDetected()) {
-            sendPartial("\"localMode\": true, ");
+            sendPartial(F("\"localMode\": true, "));
         } else {
-            sendPartial("\"localMode\": false, ");
+            sendPartial(F("\"localMode\": false, "));
         }
         sendPartial("\"localModeRepairs\": " + String(fancoil->getLocalModeRepairs()) + ", ");
 
         if (fancoil->isSwingOn()) {
-            sendPartial("\"swing\": true, ");
+            sendPartial(F("\"swing\": true, "));
         } else {
-            sendPartial("\"swing\": false, ");
+            sendPartial(F("\"swing\": false, "));
         }
 
         if (fancoil->ev1On()) {
-            sendPartial("\"ev1\": true, ");
+            sendPartial(F("\"ev1\": true, "));
         } else {
-            sendPartial("\"ev1\": false, ");
+            sendPartial(F("\"ev1\": false, "));
         }
 
         if (fancoil->ev2On()) {
-            sendPartial("\"ev2\": true, ");
+            sendPartial(F("\"ev2\": true, "));
         } else {
-            sendPartial("\"ev2\": false, ");
+            sendPartial(F("\"ev2\": false, "));
         }
 
         if (fancoil->boilerOn()) {
-            sendPartial("\"boiler\": true, ");
+            sendPartial(F("\"boiler\": true, "));
         } else {
-            sendPartial("\"boiler\": false, ");
+            sendPartial(F("\"boiler\": false, "));
         }
 
         if (fancoil->chillerOn()) {
-            sendPartial("\"chiller\": true, ");
+            sendPartial(F("\"chiller\": true, "));
         } else {
-            sendPartial("\"chiller\": false, ");
+            sendPartial(F("\"chiller\": false, "));
         }
 
         if (fancoil->hasWaterFault()) {
-            sendPartial("\"waterFault\": true, ");
+            sendPartial(F("\"waterFault\": true, "));
         } else {
-            sendPartial("\"waterFault\": false, ");
+            sendPartial(F("\"waterFault\": false, "));
         }
 
 #ifdef LOAD_WATER_TEMP
@@ -449,33 +478,33 @@ void handleGet() {
 
         switch (fancoil->getSyncState()) {
             case SyncState::HAPPY:
-                sendPartial("\"syncState\": \"HAPPY\",");
+                sendPartial(F("\"syncState\": \"HAPPY\","));
                 break;
             case SyncState::WRITING:
-                sendPartial("\"syncState\": \"WRITING\",");
+                sendPartial(F("\"syncState\": \"WRITING\","));
                 break;
             default:
-                sendPartial("\"syncState\": \"INVALID\",");
+                sendPartial(F("\"syncState\": \"INVALID\","));
                 break;
         }
-	sendPartial("\"data\":[");
-	sendPartial("\"");
+	sendPartial(F("\"data\":["));
+	sendPartial(F("\""));
 	sendPartial(toBin8(fancoil->getData1()));
-	sendPartial("\",");
-	sendPartial("\"");
+	sendPartial(F("\","));
+	sendPartial(F("\""));
 	sendPartial(toBin8(fancoil->getData2()));
-	sendPartial("\"");
-	sendPartial("],");
-	sendPartial("\"recData\":[");
-	sendPartial("\"");
+	sendPartial(F("\""));
+	sendPartial(F("],"));
+	sendPartial(F("\"recData\":["));
+	sendPartial(F("\""));
 	sendPartial(toBin8(fancoil->getRecData1()));
-	sendPartial("\",");
-	sendPartial("\"");
+	sendPartial(F("\","));
+	sendPartial(F("\""));
 	sendPartial(toBin8(fancoil->getRecData2()));
-	sendPartial("\"");
-	sendPartial("]");
+	sendPartial(F("\""));
+	sendPartial(F("]"));
 
-        sendPartial("}");
+        sendPartial(F("}"));
         sendPartialEnd();
     }
 }
